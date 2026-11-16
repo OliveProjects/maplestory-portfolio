@@ -317,9 +317,9 @@ async function load() {
     const opening = act && act.opening;
     const liveItems = (live && live.items) || {};
     const when = live && live.updated ? live.updated * 1000 : null;
-    // Prices entered by hand (Synka.bat → 5) name their source next to the credit.
+    // Prices entered by hand (Synka.bat → 5) say so next to the credit.
     if (live && live.manual) document.querySelector('header .source').insertAdjacentHTML('beforeend',
-        ` · prices on ${fmtDate(live.manual_date || dayOf(when))} entered by hand from ${esc(live.manual)}`);
+        ` · prices on ${fmtDate(live.manual_date || dayOf(when))} entered by hand`);
 
     // Latest price per item: the live price when there is one, else the last daily one.
     const lastPrice = {};
@@ -481,7 +481,7 @@ async function load() {
     function details(r, el) {
         const box = el.querySelector('.more');
         const facts = [];
-        if (r.price) facts.push(['Price', whole(r.price), liveItems[r.id]?.w === 'manual' ? `entered by hand (${esc(live.manual || '')})`
+        if (r.price) facts.push(['Price', whole(r.price), liveItems[r.id]?.w === 'manual' ? 'entered by hand'
                                                           : liveItems[r.id] ? 'median of what sold' : 'last daily price']);
         if (r.cost) facts.push(['Paid', whole(r.cost), 'each, on average']);
         if (r.price && r.cost) facts.push(['Unrealised', `<span class="${cls(r.price - r.cost)}">${signed((r.price - r.cost) * r.qty)}</span>`, `on ${r.qty} held`]);
