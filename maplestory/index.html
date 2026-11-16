@@ -17,62 +17,123 @@
     <meta property="og:image:height" content="630">
     <meta name="twitter:card"       content="summary_large_image">
     <!--
-      A deliberately plain page: the same data as the full version, no
-      design of its own. Change the colours below, or replace the whole
-      file; the data in data/ stays the same.
+      The page's own look: light paper with ink, the system's fonts, rules
+      and tables instead of boxes, and a dark mode. Colours are the
+      variables just below; the data in data/ stays the same whatever you
+      change here. Keep the credit to maplestory.market (their API terms).
     -->
     <style>
-        :root { color-scheme: light dark; --bg: #fff; --fg: #1a1a1a; --sub: #666; --line: #ddd; --up: #1e8e3e; --down: #d93025; }
-        @media (prefers-color-scheme: dark) { :root { --bg: #121212; --fg: #eee; --sub: #999; --line: #333; --up: #66bb6a; --down: #ef5350; } }
-        body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-        main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
-        h1 { margin: 0 0 4px; font-size: 28px; }
-        h2 { margin: 40px 0 12px; font-size: 20px; }
-        .sub { color: var(--sub); font-size: 14px; }
-        .total { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 16px 0 0; }
-        .facts { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 12px 0 0; padding: 0; list-style: none; }
-        .facts b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+        :root {
+            color-scheme: light dark;
+            --paper: #f7f4ee; --ink: #1d1b18; --muted: #6f6a62; --rule: #e2ddd3; --row: #efeae1;
+            --accent: #5b4bb7; --up: #1b8a4c; --down: #c8372d; --area: rgba(91, 75, 183, 0.10);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root { --paper: #17161a; --ink: #ecebef; --muted: #9a97a3; --rule: #2c2a31; --row: #201f25;
+                    --accent: #a597ff; --up: #4cc38a; --down: #ff6b5e; --area: rgba(165, 151, 255, 0.12); }
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--paper); color: var(--ink);
+               font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        main { max-width: 1000px; margin: 0 auto; padding: 40px 20px 56px; }
+        a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+        header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px;
+                 padding-bottom: 18px; border-bottom: 2px solid var(--ink); }
+        h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; }
+        .lead { margin: 4px 0 0; color: var(--muted); font-size: 15px; }
+        .source { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+        .value { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr)); margin: 28px 0 8px; }
+        .value > div { padding: 0 20px; border-left: 1px solid var(--rule); }
+        .value > div:first-child { padding-left: 0; border-left: 0; }
+        .label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+        .big { font-size: 38px; font-weight: 700; letter-spacing: -0.8px; font-variant-numeric: tabular-nums; line-height: 1.15; }
+        .mid { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; }
+        .note { font-size: 13px; color: var(--muted); }
         .up { color: var(--up); } .down { color: var(--down); }
-        .ranges { display: flex; gap: 6px; margin: 12px 0 6px; }
-        .ranges button { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); background: none; color: var(--fg); border-radius: 6px; cursor: pointer; }
-        .ranges button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
-        svg { width: 100%; height: 220px; display: block; }
-        svg .grid { stroke: var(--line); stroke-width: 1; }
-        svg text { fill: var(--sub); font-size: 11px; }
+
+        h2 { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+             margin: 44px 0 14px; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; }
+        .ranges { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; }
+        .ranges button { font: inherit; font-size: 12px; letter-spacing: 0.04em; padding: 3px 12px; border: 0; border-radius: 999px;
+                         background: none; color: var(--muted); cursor: pointer; }
+        .ranges button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+        .chart { position: relative; }
+        svg { width: 100%; height: 240px; display: block; }
+        svg .grid { stroke: var(--rule); stroke-width: 1; }
+        svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+        .tip { position: absolute; top: 0; pointer-events: none; background: var(--ink); color: var(--paper);
+               font-size: 12px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translateX(-50%); display: none; }
+
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
-        th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+        th, td { padding: 8px 10px; text-align: right; white-space: nowrap; }
         th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
-        th { font-size: 12px; color: var(--sub); font-weight: 600; cursor: pointer; }
+        thead th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+                   border-bottom: 1px solid var(--ink); cursor: pointer; user-select: none; }
+        thead th[aria-sort] { color: var(--ink); }
+        tbody tr:nth-child(even) { background: var(--row); }
+        td.icon { width: 44px; padding-right: 0; }
         td img { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; vertical-align: middle; }
-        td a { color: inherit; }
+        td a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--rule); }
+        td a:hover { border-color: var(--accent); }
+        .slot { color: var(--muted); font-size: 12px; margin-left: 6px; }
+        .share { display: inline-block; width: 46px; height: 4px; background: var(--rule); vertical-align: middle; margin-left: 8px; }
+        .share i { display: block; height: 100%; background: var(--accent); }
+
         .activity { list-style: none; margin: 0; padding: 0; font-size: 14px; }
-        .activity li { padding: 6px 0; border-bottom: 1px solid var(--line); }
-        footer { margin-top: 40px; color: var(--sub); font-size: 13px; }
-        footer a { color: inherit; }
+        .activity .month { margin: 18px 0 6px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+        .activity li.e { display: grid; grid-template-columns: 70px 90px 1fr auto; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--rule); }
+        .tag { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 650; }
+        .tag.buy { color: var(--up); } .tag.sell { color: var(--accent); } .tag.out { color: var(--muted); }
+
+        footer { margin-top: 52px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; }
+        footer p { margin: 4px 0; }
+
+        @media (max-width: 720px) {
+            .value { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 18px; }
+            .value > div:first-child { grid-column: 1 / -1; }
+            .value > div:nth-child(2) { padding-left: 0; border-left: 0; }
+            .big { font-size: 32px; } .mid { font-size: 18px; }
+            .activity li.e { grid-template-columns: 56px 1fr auto; }
+            .activity li.e .when { display: none; }
+        }
     </style>
 </head>
 <body>
 <main>
-    <h1>MapleStory portfolio (test)</h1>
-    <p class="sub">The cosmetics in my MapleStory Classic inventory, valued in mesos like a portfolio. <span id="updated"></span></p>
+    <header>
+        <div>
+            <h1>MapleStory portfolio (test)</h1>
+            <p class="lead">My MapleStory Classic NX cosmetics, valued in mesos like a portfolio.</p>
+        </div>
+        <!-- The credit maplestory.market's API terms require (point 2), next
+             to the numbers it is about, with the key's link code. -->
+        <span class="source">Prices from <a href="https://maplestory.market/?ref=8pxbpzn5">maplestory.market</a></span>
+    </header>
 
-    <p class="total"><span id="total">–</span> <span class="sub">mesos</span></p>
-    <ul class="facts" id="facts"></ul>
+    <section class="value">
+        <div>
+            <div class="label" id="updated">Value</div>
+            <div class="big"><span id="total">–</span></div>
+            <div class="note" id="unit">mesos</div>
+        </div>
+        <div id="f1"></div>
+        <div id="f2"></div>
+        <div id="f3"></div>
+    </section>
 
-    <h2>Value over time</h2>
-    <div class="ranges" id="ranges" role="group" aria-label="Chart range"></div>
-    <svg id="chart" role="img" aria-label="Portfolio value over time"></svg>
+    <h2>Value over time <span class="ranges" id="ranges" role="group" aria-label="Chart range"></span></h2>
+    <div class="chart"><svg id="chart" role="img" aria-label="Portfolio value over time"></svg><div class="tip" id="tip"></div></div>
 
     <h2>Inventory</h2>
     <div class="table-wrap"><table id="items"></table></div>
 
     <h2>Activity</h2>
-    <p class="sub" id="shops" hidden></p>
+    <p class="note" id="shops" hidden></p>
     <ul class="activity" id="activity"></ul>
 
-    <!-- The credit maplestory.market's API terms require (point 2), with the
-         key's link code. Their daily check reads this page and looks for it. -->
     <footer>
         <p>Prices from <a href="https://maplestory.market/?ref=8pxbpzn5">maplestory.market</a>. Icons from the game's own files.</p>
         <p>© 2026 MapleStory portfolio (test)</p>
@@ -100,13 +161,17 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const dayOf = ms => new Date(ms).toLocaleDateString('sv-SE', { timeZone: TZ });
 const fmtDate = (d, year = false) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB',
     { day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' });
+const fmtTime = ms => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ });
 const get = f => fetch(`data/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null);
+const fact = (id, label, value, note) => { document.getElementById(id).innerHTML =
+    `<div class="label">${label}</div><div class="mid">${value}</div><div class="note">${note}</div>`; };
 
 async function load() {
     const [inv, prices, act, live, hourly, shops] = await Promise.all(
         ['inventory.json', 'prices.json', 'activity.json', 'live.json', 'hourly.json', 'shops.json'].map(get));
     if (!inv || !prices || !prices.updates || !prices.updates.length) {
         document.getElementById('total').textContent = 'No data yet';
+        document.getElementById('unit').textContent = 'Run the first sync on your computer.';
         return;
     }
     const updates = prices.updates;
@@ -141,33 +206,29 @@ async function load() {
                  ret: price && c ? (price / c - 1) * 100 : null, c24: liveItems[it.id]?.c24 ?? null };
     });
     const total = rows.reduce((s, r) => s + r.value, 0);
+    const when = live && live.updated ? live.updated * 1000 : null;
     document.getElementById('total').textContent = whole(total);
+    if (when) document.getElementById('updated').textContent = 'Value · ' + fmtTime(when);
     if (!total) {
         // Before the first prices: the hourly job fetches each item's history,
         // five an hour, and builds the prices when all are fetched.
         document.getElementById('total').textContent = 'Waiting for prices';
-        document.getElementById('updated').textContent = `The first prices come after about ${Math.ceil(rows.length / 5)} hours.`;
+        document.getElementById('unit').textContent = `The first prices come after about ${Math.ceil(rows.length / 5)} hours.`;
     }
-    const when = live && live.updated ? live.updated * 1000 : null;
-    if (when) document.getElementById('updated').textContent = 'Updated ' +
-        new Date(when).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ }) + '.';
 
-    // Facts: unrealised and realised return, items.
-    const facts = [];
+    // Unrealised and realised return, items.
     const held = rows.filter(r => r.cost !== undefined);
-    if (held.length === rows.length) {
+    if (total && held.length === rows.length) {
         const paid = held.reduce((s, r) => s + r.cost * r.qty, 0);
         const unreal = total - paid;
-        facts.push(['Unrealised', `<span class="${cls(unreal)}">${signed(unreal)}</span>`, `on ${short(paid)} paid`]);
-    }
+        fact('f1', 'Unrealised', `<span class="${cls(unreal)}">${signed(unreal)}</span>`, `${pct(unreal / paid * 100)} on ${short(paid)} paid`);
+    } else fact('f1', 'Unrealised', '–', 'needs prices and costs');
     const sold = events.filter(e => e.delta < 0 && e.sold_price && cost(e.id, e) !== undefined);
     if (sold.length) {
         const real = sold.reduce((s, e) => s + (e.sold_price - cost(e.id, e)) * -e.delta, 0);
-        facts.push(['Realised', `<span class="${cls(real)}">${signed(real)}</span>`, `on ${sold.reduce((s, e) => s - e.delta, 0)} sold`]);
-    }
-    facts.push(['Items', whole(rows.reduce((s, r) => s + r.qty, 0)), `in ${rows.length} kinds`]);
-    document.getElementById('facts').innerHTML = facts.map(([t, v, s]) =>
-        `<li><span class="sub">${t}</span><b>${v}</b><span class="sub">${s}</span></li>`).join('');
+        fact('f2', 'Realised', `<span class="${cls(real)}">${signed(real)}</span>`, `on ${sold.reduce((s, e) => s - e.delta, 0)} sold`);
+    } else fact('f2', 'Realised', '–', 'nothing sold yet');
+    fact('f3', 'Items', whole(rows.reduce((s, r) => s + r.qty, 0)), `in ${rows.length} kinds`);
 
     // The value series: one point per day, each day's own quantities, then
     // the hours from hourly.json after the last day, and the live value.
@@ -180,33 +241,49 @@ async function load() {
     if (when && total) series.push({ t: when, v: total });
     series.sort((a, b) => a.t - b.t);
 
-    const RANGES = [['7D', 7], ['1M', 30], ['MAX', Infinity]];
-    let range = 'MAX';
+    const RANGES = [['7D', 7], ['1M', 30], ['All', Infinity]];
+    let range = 'All';
     const ranges = document.getElementById('ranges');
+    const svg = document.getElementById('chart'), tip = document.getElementById('tip');
+    let shown = [], X, Y;
     function drawChart() {
         ranges.innerHTML = RANGES.map(([n]) => `<button type="button" data-r="${n}" aria-pressed="${n === range}">${n}</button>`).join('');
         const days = RANGES.find(r => r[0] === range)[1];
         const end = series.length ? series[series.length - 1].t : Date.now();
-        const pts = series.filter(p => p.t >= end - days * 864e5);
-        const svg = document.getElementById('chart');
-        if (pts.length < 2) { svg.innerHTML = '<text x="0" y="20">The chart appears after a couple of days.</text>'; return; }
-        const W = svg.clientWidth || 900, H = 220, R = 56, B = 20;
+        shown = series.filter(p => p.t >= end - days * 864e5);
+        if (shown.length < 2) { svg.innerHTML = '<text x="0" y="20">The chart appears after a couple of days with prices.</text>'; return; }
+        const W = svg.clientWidth || 900, H = 240, R = 58, B = 22, T = 10;
         svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-        const lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v));
+        const lo = Math.min(...shown.map(p => p.v)), hi = Math.max(...shown.map(p => p.v));
         const pad = (hi - lo) * 0.08 || hi * 0.02 || 1;
-        const y0 = lo - pad, y1 = hi + pad, t0 = pts[0].t, t1 = pts[pts.length - 1].t;
-        const X = t => (t - t0) / (t1 - t0 || 1) * (W - R);
-        const T = 10;  // room above the top label
-        const Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - B - T);
-        const colour = pts[pts.length - 1].v >= pts[0].v ? 'var(--up)' : 'var(--down)';
+        const y0 = lo - pad, y1 = hi + pad, t0 = shown[0].t, t1 = shown[shown.length - 1].t;
+        X = t => (t - t0) / (t1 - t0 || 1) * (W - R);
+        Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - B - T);
+        const up = shown[shown.length - 1].v >= shown[0].v;
         let grid = '';
         for (let i = 0; i <= 3; i++) {
             const v = y0 + (y1 - y0) * i / 3;
-            grid += `<line class="grid" x1="0" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"></line><text x="${W - R + 6}" y="${Y(v) + 4}">${short(v)}</text>`;
+            grid += `<line class="grid" x1="0" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"></line><text x="${W - R + 8}" y="${Y(v) + 4}">${short(v)}</text>`;
         }
         grid += `<text x="0" y="${H - 4}">${fmtDate(dayOf(t0))}</text><text x="${W - R}" y="${H - 4}" text-anchor="end">${fmtDate(dayOf(t1))}</text>`;
-        svg.innerHTML = grid + `<polyline fill="none" stroke="${colour}" stroke-width="2" points="${pts.map(p => X(p.t).toFixed(1) + ',' + Y(p.v).toFixed(1)).join(' ')}"></polyline>`;
+        const line = shown.map(p => X(p.t).toFixed(1) + ',' + Y(p.v).toFixed(1)).join(' ');
+        svg.innerHTML = grid +
+            `<polygon fill="var(--area)" points="${X(t0)},${H - B} ${line} ${X(t1)},${H - B}"></polygon>` +
+            `<polyline fill="none" stroke="${up ? 'var(--up)' : 'var(--down)'}" stroke-width="2" stroke-linejoin="round" points="${line}"></polyline>` +
+            `<circle id="dot" r="4" fill="var(--ink)" visibility="hidden"></circle>`;
     }
+    svg.addEventListener('pointermove', e => {
+        if (shown.length < 2) return;
+        const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * (svg.viewBox.baseVal.width || r.width);
+        let p = shown[0];
+        shown.forEach(q => { if (Math.abs(X(q.t) - x) < Math.abs(X(p.t) - x)) p = q; });
+        const dot = document.getElementById('dot');
+        dot.setAttribute('cx', X(p.t)); dot.setAttribute('cy', Y(p.v)); dot.setAttribute('visibility', 'visible');
+        tip.textContent = `${fmtTime(p.t)} · ${whole(p.v)}`;
+        tip.style.left = Math.min(Math.max(X(p.t) / (svg.viewBox.baseVal.width || r.width) * r.width, 80), r.width - 80) + 'px';
+        tip.style.display = 'block';
+    });
+    svg.addEventListener('pointerleave', () => { tip.style.display = 'none'; const d = document.getElementById('dot'); if (d) d.setAttribute('visibility', 'hidden'); });
     ranges.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { range = b.dataset.r; drawChart(); } });
     drawChart();
     addEventListener('resize', drawChart);
@@ -217,15 +294,16 @@ async function load() {
     let sortKey = 'value';
     function drawTable() {
         const sorted = [...rows].sort((a, b) => sortKey === 'name' ? a.name.localeCompare(b.name) : (b[sortKey] ?? -Infinity) - (a[sortKey] ?? -Infinity));
+        const top = Math.max(1, ...rows.map(r => r.value));
         document.getElementById('items').innerHTML =
-            `<thead><tr>${COLS.map(([t, k]) => `<th${k ? ` data-k="${k}"` : ''}>${t}</th>`).join('')}</tr></thead><tbody>` +
+            `<thead><tr>${COLS.map(([t, k], i) => `<th${k ? ` data-k="${k}"` : ''}${k === sortKey && i !== 5 ? ' aria-sort="descending"' : ''}>${t}</th>`).join('')}</tr></thead><tbody>` +
             sorted.map(r => `<tr>
-                <td><img src="icons/${r.id}.png" alt="" loading="lazy"></td>
-                <td><a href="${marketLink(r.id)}">${esc(r.name)}</a> <span class="sub">${esc(r.slot || '')}</span></td>
+                <td class="icon"><img src="icons/${r.id}.png" alt="" loading="lazy"></td>
+                <td><a href="${marketLink(r.id)}">${esc(r.name)}</a> <span class="slot">${esc(r.slot || '')}</span></td>
                 <td>${r.qty}</td>
                 <td>${r.price ? short(r.price) : '–'}</td>
                 <td>${r.price ? short(r.value) : '–'}</td>
-                <td>${total ? (r.value / total * 100).toFixed(1) + '%' : '–'}</td>
+                <td>${total ? (r.value / total * 100).toFixed(1) + '%' : '–'}<span class="share"><i style="width:${(r.value / top * 100).toFixed(0)}%"></i></span></td>
                 <td class="${r.ret === null ? '' : cls(r.ret)}">${r.ret === null ? '–' : pct(r.ret)}</td>
                 <td class="${r.c24 === null ? '' : cls(r.c24)}">${r.c24 === null ? '–' : pct(r.c24)}</td>
             </tr>`).join('') + '</tbody>';
@@ -233,12 +311,18 @@ async function load() {
     document.getElementById('items').addEventListener('click', e => { const th = e.target.closest('th[data-k]'); if (th) { sortKey = th.dataset.k; drawTable(); } });
     drawTable();
 
-    // Activity, newest first, and what the shops have sold.
-    const label = e => e.delta > 0 ? (e.buy_price ? 'Bought' : 'Added') : e.given ? 'Gave away' : e.sold_price ? 'Sold' : 'Removed';
-    document.getElementById('activity').innerHTML = [...events].reverse().map(e =>
-        `<li><span class="sub">${fmtDate(e.date, true)}</span> · ${label(e)} ${Math.abs(e.delta)} × <a href="${marketLink(e.id)}">${esc(e.name)}</a>` +
-        (e.sold_price ? ` for ${whole(e.sold_price)} each` : e.buy_price ? ` for ${whole(e.buy_price)} each` : '') + '</li>').join('') ||
-        '<li class="sub">Nothing yet.</li>';
+    // Activity, newest first, grouped by month, and what the shops have sold.
+    const label = e => e.delta > 0 ? (e.buy_price ? ['Bought', 'buy'] : ['Added', 'out']) : e.given ? ['Gave away', 'out'] : e.sold_price ? ['Sold', 'sell'] : ['Removed', 'out'];
+    let month = '', html = '';
+    [...events].reverse().forEach(e => {
+        const m = new Date(e.date + 'T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+        if (m !== month) { month = m; html += `<li class="month">${m}</li>`; }
+        const [t, c] = label(e);
+        html += `<li class="e"><span class="when">${fmtDate(e.date)}</span><span class="tag ${c}">${t}</span>` +
+            `<span>${Math.abs(e.delta)} × <a href="${marketLink(e.id)}">${esc(e.name)}</a></span>` +
+            `<span class="note">${e.sold_price ? whole(e.sold_price) + ' each' : e.buy_price ? whole(e.buy_price) + ' each' : ''}</span></li>`;
+    });
+    document.getElementById('activity').innerHTML = html || '<li class="note">Nothing yet.</li>';
     const openings = shops ? Object.values(shops.openings || {}) : [];
     if (openings.length) {
         const el = document.getElementById('shops');

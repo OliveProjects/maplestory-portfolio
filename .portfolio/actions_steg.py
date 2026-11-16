@@ -27,7 +27,10 @@ os.chdir(HERE)
 import hamta_historik as hh  # noqa: E402
 import installningar as inst  # noqa: E402
 
-WEB = os.path.abspath(os.path.join(HERE, ".."))
+# The site's root: by default the folder above .portfolio/ (the repo on
+# Actions). On your own server, set PORTFOLIO_WEB to the folder the web
+# server shows, and keep the scripts and nyckel.txt outside it.
+WEB = os.path.abspath(os.environ.get("PORTFOLIO_WEB") or os.path.join(HERE, ".."))
 DATA = inst.data(WEB)
 PRICES = os.path.join(DATA, "prices.json")
 LIVE = os.path.join(DATA, "live.json")
