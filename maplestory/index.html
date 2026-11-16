@@ -117,11 +117,29 @@
         .close { position: absolute; top: 8px; right: 10px; font: inherit; font-size: 18px; border: 0; background: none; color: var(--muted); cursor: pointer; display: none; }
         .item.open .close { display: block; }
 
-        .activity { list-style: none; margin: 0; padding: 4px 16px; font-size: 14px; }
-        .activity .month { padding: 12px 0 4px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-        .activity li.e { display: grid; grid-template-columns: 70px 90px 1fr auto; gap: 12px; padding: 7px 0; border-top: 1px solid var(--rule); }
-        .tag { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 650; }
-        .tag.buy { color: var(--up); } .tag.sell { color: var(--accent); } .tag.out { color: var(--muted); }
+        /* Activity: one panel, a month heading, one row per change, a
+           slightly bigger gap between days, ten rows a page. */
+        .activity { padding: 4px 0; font-size: 14px; }
+        .activity .month { padding: 14px 16px 6px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+        .act { display: grid; grid-template-columns: 86px 36px minmax(0, 1fr) 44px 110px 64px; align-items: center; gap: 12px;
+               padding: 9px 16px; border-top: 1px solid var(--rule); }
+        .act.newday { border-top: 6px solid var(--paper); }
+        .act .ic { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-soft); display: grid; place-items: center; }
+        .act .ic img { max-width: 28px; max-height: 28px; image-rendering: pixelated; }
+        .act .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .act .nm a { color: inherit; text-decoration: none; }
+        .act .nm a:hover { text-decoration: underline; }
+        .act .dq, .act .amt, .act .day { text-align: right; font-variant-numeric: tabular-nums; }
+        .act .dq { font-weight: 650; } .act .amt, .act .day { color: var(--muted); }
+        .tag { justify-self: start; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 700; padding: 3px 8px; border-radius: 4px; }
+        .tag.buy { color: var(--up); background: rgba(27, 138, 76, 0.10); }
+        .tag.sell { color: var(--accent); background: var(--accent-soft); }
+        .tag.out { color: var(--muted); background: var(--rule); }
+        .pager { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+        .pager button { font: inherit; font-size: 13px; min-width: 34px; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px;
+                        background: var(--surface); color: var(--muted); cursor: pointer; font-variant-numeric: tabular-nums; }
+        .pager button[aria-current] { color: var(--ink); border-color: var(--ink); }
+        .pager span { align-self: center; color: var(--muted); }
 
         footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; }
         footer p { margin: 4px 0; }
@@ -132,8 +150,10 @@
             .tile { padding: 8px 10px; } .tile b { font-size: 16px; }
             .item.open { grid-template-columns: minmax(0, 1fr); gap: 14px; }
             .item.open .more { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); padding-top: 14px; }
-            .activity li.e { grid-template-columns: 56px 1fr auto; }
-            .activity li.e .when { display: none; }
+            .act { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "ic nm dq" "ic tg amt"; row-gap: 2px; padding: 9px 12px; }
+            .act .ic { grid-area: ic; width: 30px; height: 30px; } .act .ic img { max-width: 24px; max-height: 24px; }
+            .act .nm { grid-area: nm; } .act .dq { grid-area: dq; } .act .amt { grid-area: amt; }
+            .act .tag { grid-area: tg; } .act .day { display: none; }
         }
     </style>
 </head>
@@ -185,8 +205,18 @@
     <div class="items" id="items"></div>
 
     <h2>Activity</h2>
-    <p class="muted" id="shops" hidden></p>
-    <ul class="activity panel" id="activity"></ul>
+    <div class="bar-row">
+        <span class="muted" id="shops"></span>
+        <div class="sort" id="act-filter" role="group" aria-label="Show in activity">
+            <button type="button" data-f="all" aria-pressed="true">All</button>
+            <button type="button" data-f="buy" aria-pressed="false">Bought</button>
+            <button type="button" data-f="sell" aria-pressed="false">Sold</button>
+            <button type="button" data-f="given" aria-pressed="false">Given</button>
+            <button type="button" data-f="used" aria-pressed="false">Used</button>
+        </div>
+    </div>
+    <div class="activity panel" id="activity"></div>
+    <div class="pager" id="pager" role="navigation" aria-label="Activity pages"></div>
 
     <footer>
         <p>Prices from <a href="https://maplestory.market/?ref=8pxbpzn5">maplestory.market</a>. Icons from the game's own files.</p>
@@ -453,7 +483,7 @@ async function load() {
         }
         if (liveItems[r.id]?.per_day != null) facts.push(['Sold a day', liveItems[r.id].per_day, 'on the market']);
         const hist = events.filter(e => e.id === r.id).map(e =>
-            `${e.delta > 0 ? (e.buy_price ? 'Bought' : 'Added') : e.given ? 'Gave away' : e.sold_price ? 'Sold' : 'Removed'} <b>${Math.abs(e.delta)}</b> on ${fmtDate(e.date)}` +
+            `${e.delta > 0 ? (e.buy_price ? 'Bought' : 'Added') : e.given ? 'Gave away' : e.used ? 'Used' : e.sold_price ? 'Sold' : 'Removed'} <b>${Math.abs(e.delta)}</b> on ${fmtDate(e.date)}` +
             (e.sold_price ? ` for <b>${whole(e.sold_price)}</b> each` : e.buy_price ? ` for <b>${whole(e.buy_price)}</b> each` : ''));
         box.innerHTML = `<div class="chart"><svg role="img" aria-label="${esc(r.name)} price over time"></svg><div class="tip"></div></div>
             <dl class="facts">${facts.map(([t, v, s]) => `<div><dt class="label">${t}</dt><dd>${v}<small>${s}</small></dd></div>`).join('')}</dl>
@@ -490,25 +520,56 @@ async function load() {
     drawItems();
     addEventListener('resize', () => { drawChart(); if (open) drawItems(); });
 
-    // Activity, newest first, grouped by month, and what the shops have sold.
-    const label = e => e.delta > 0 ? (e.buy_price ? ['Bought', 'buy'] : ['Added', 'out']) : e.given ? ['Gave away', 'out'] : e.sold_price ? ['Sold', 'sell'] : ['Removed', 'out'];
-    let month = '', html = '';
-    [...events].reverse().forEach(e => {
-        const m = new Date(e.date + 'T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-        if (m !== month) { month = m; html += `<li class="month">${m}</li>`; }
-        const [t, c] = label(e);
-        html += `<li class="e"><span class="when">${fmtDate(e.date)}</span><span class="tag ${c}">${t}</span>` +
-            `<span>${Math.abs(e.delta)} × <a href="${marketLink(e.id)}">${esc(e.name)}</a></span>` +
-            `<span class="muted">${e.sold_price ? whole(e.sold_price) + ' each' : e.buy_price ? whole(e.buy_price) + ' each' : ''}</span></li>`;
-    });
-    document.getElementById('activity').innerHTML = html || '<li class="muted">Nothing yet.</li>';
-    const openings = shops ? Object.values(shops.openings || {}) : [];
-    if (openings.length) {
-        const el = document.getElementById('shops');
-        el.innerHTML = `My shops have sold ${whole(openings.reduce((s, o) => s + o.mesos, 0))} mesos in ${openings.reduce((s, o) => s + o.sales, 0)} sales. ` +
-            `Shop sales from <a href="https://maplestory.market/owners/Hakushu${REF}">maplestory.market</a>.`;
-        el.hidden = false;
+    // Activity, newest first: a filter, a month heading, the days apart, ten a page.
+    const kind = e => e.delta > 0 ? (e.buy_price ? 'buy' : 'add') : e.given ? 'given' : e.used ? 'used' : e.sold_price ? 'sell' : 'removed';
+    const TAGS = { buy: ['Bought', 'buy'], add: ['Added', 'out'], given: ['Given', 'out'], used: ['Used', 'out'], sell: ['Sold', 'sell'], removed: ['Removed', 'out'] };
+    const PER_PAGE = 10;
+    let filter = 'all', page = 1;
+    const newest = [...events].reverse();
+    function drawActivity() {
+        const list = newest.filter(e => filter === 'all' || kind(e) === filter);
+        const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+        page = Math.min(page, pages);
+        let month = '', day = '', html = '';
+        list.slice((page - 1) * PER_PAGE, page * PER_PAGE).forEach(e => {
+            const m = new Date(e.date + 'T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+            if (m !== month) { month = m; day = ''; html += `<div class="month">${m}</div>`; }
+            const [t, c] = TAGS[kind(e)];
+            const amt = e.sold_price ? `got ${short(e.sold_price * Math.abs(e.delta))}` : e.buy_price ? `paid ${short(e.buy_price * Math.abs(e.delta))}` : '';
+            html += `<div class="act${day && day !== e.date ? ' newday' : ''}">` +
+                `<span class="tag ${c}">${t}</span>` +
+                `<span class="ic"><img src="icons/${e.id}.png" alt="" loading="lazy"></span>` +
+                `<span class="nm"><a href="${marketLink(e.id)}">${esc(e.name)}</a></span>` +
+                `<span class="dq">${e.delta > 0 ? '+' : '−'}${Math.abs(e.delta)}</span>` +
+                `<span class="amt">${amt}</span><span class="day">${fmtDate(e.date)}</span></div>`;
+            day = e.date;
+        });
+        document.getElementById('activity').innerHTML = html || '<div class="month">Nothing here yet.</div>';
+        // Page buttons: the first, the last, and the ones around this page.
+        const nums = [...new Set([1, page - 1, page, page + 1, pages])].filter(n => n >= 1 && n <= pages).sort((a, b) => a - b);
+        let pg = '';
+        nums.forEach((n, i) => {
+            if (i && n - nums[i - 1] > 1) pg += '<span>…</span>';
+            pg += `<button type="button" data-p="${n}"${n === page ? ' aria-current="page"' : ''}>${n}</button>`;
+        });
+        document.getElementById('pager').innerHTML = pages > 1 ? pg : '';
     }
+    document.getElementById('act-filter').addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        filter = b.dataset.f; page = 1;
+        document.querySelectorAll('#act-filter button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        drawActivity();
+    });
+    document.getElementById('pager').addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        page = +b.dataset.p; drawActivity();
+        document.getElementById('activity').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+    drawActivity();
+    const openings = shops ? Object.values(shops.openings || {}) : [];
+    if (openings.length) document.getElementById('shops').innerHTML =
+        `My shops have sold <b>${whole(openings.reduce((s, o) => s + o.mesos, 0))}</b> mesos in <b>${openings.reduce((s, o) => s + o.sales, 0)}</b> sales. ` +
+        `Shop sales from <a href="https://maplestory.market/owners/Hakushu${REF}">maplestory.market</a>.`;
 }
 load();
 </script>
