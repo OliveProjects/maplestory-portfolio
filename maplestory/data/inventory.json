@@ -1,0 +1,381 @@
+{
+ "date": "2026-11-16",
+ "items": [
+  {
+   "id": "1007003",
+   "name": "Cat Hat",
+   "qty": 5,
+   "slot": "Hat",
+   "w": 29,
+   "h": 26
+  },
+  {
+   "id": "1057049",
+   "name": "Cat Suit",
+   "qty": 5,
+   "slot": "Overall",
+   "w": 28,
+   "h": 31
+  },
+  {
+   "id": "1077017",
+   "name": "Gold Kitty Slippers",
+   "qty": 5,
+   "slot": "Shoes",
+   "w": 29,
+   "h": 21
+  },
+  {
+   "id": "1112215",
+   "name": "Kitty Chat Ring",
+   "qty": 5,
+   "slot": "Ring",
+   "w": 27,
+   "h": 29
+  },
+  {
+   "id": "1007142",
+   "name": "Bunny Ears",
+   "qty": 4,
+   "slot": "Hat",
+   "w": 31,
+   "h": 31
+  },
+  {
+   "id": "1007077",
+   "name": "Angel Halo",
+   "qty": 6,
+   "slot": "Hat",
+   "w": 26,
+   "h": 7
+  },
+  {
+   "id": "1047072",
+   "name": "Red Sailor Shirt",
+   "qty": 5,
+   "slot": "Top",
+   "w": 27,
+   "h": 24
+  },
+  {
+   "id": "1067056",
+   "name": "Red Sailor Skirt",
+   "qty": 5,
+   "slot": "Bottom",
+   "w": 30,
+   "h": 14
+  },
+  {
+   "id": "1107011",
+   "name": "Baby Angel Wings",
+   "qty": 5,
+   "slot": "Cape",
+   "w": 27,
+   "h": 24
+  },
+  {
+   "id": "1057020",
+   "name": "Toga",
+   "qty": 5,
+   "slot": "Overall",
+   "w": 24,
+   "h": 29
+  },
+  {
+   "id": "1702004",
+   "name": "Angel Wand",
+   "qty": 5,
+   "slot": "Weapon",
+   "w": 34,
+   "h": 34
+  },
+  {
+   "id": "1027004",
+   "name": "Black Sunglasses",
+   "qty": 3,
+   "slot": "Accessory",
+   "w": 25,
+   "h": 22
+  },
+  {
+   "id": "1112100",
+   "name": "White Label Ring",
+   "qty": 2,
+   "slot": "Ring",
+   "w": 23,
+   "h": 23
+  },
+  {
+   "id": "1047025",
+   "name": "Slime T-Shirt",
+   "qty": 3,
+   "slot": "Top",
+   "w": 30,
+   "h": 26
+  },
+  {
+   "id": "1037003",
+   "name": "Slime Earrings",
+   "qty": 2,
+   "slot": "Accessory",
+   "w": 30,
+   "h": 29
+  },
+  {
+   "id": "1067009",
+   "name": "Ripped Jeans",
+   "qty": 4,
+   "slot": "Bottom",
+   "w": 27,
+   "h": 27
+  },
+  {
+   "id": "1017022",
+   "name": "Dollish Pink",
+   "qty": 2,
+   "slot": "Accessory",
+   "w": 23,
+   "h": 29
+  },
+  {
+   "id": "1007136",
+   "name": "Bunny Earmuffs",
+   "qty": 2,
+   "slot": "Hat",
+   "w": 34,
+   "h": 30
+  },
+  {
+   "id": "1702022",
+   "name": "Cherub's Bow",
+   "qty": 3,
+   "slot": "Weapon",
+   "w": 38,
+   "h": 38
+  },
+  {
+   "id": "1077029",
+   "name": "Slime Slippers",
+   "qty": 1,
+   "slot": "Shoes",
+   "w": 32,
+   "h": 23
+  },
+  {
+   "id": "1067001",
+   "name": "Lined Hip-Hop Pants",
+   "qty": 1,
+   "slot": "Bottom",
+   "w": 25,
+   "h": 26
+  },
+  {
+   "id": "1087020",
+   "name": "Blue Watch",
+   "qty": 1,
+   "slot": "Gloves",
+   "w": 26,
+   "h": 31
+  },
+  {
+   "id": "1007105",
+   "name": "Detective Hat",
+   "qty": 1,
+   "slot": "Hat",
+   "w": 34,
+   "h": 25
+  },
+  {
+   "id": "1007141",
+   "name": "Kitty Camping Hat",
+   "qty": 1,
+   "slot": "Hat",
+   "w": 29,
+   "h": 32
+  },
+  {
+   "id": "1107007",
+   "name": "Michael Wings",
+   "qty": 3,
+   "slot": "Cape",
+   "w": 32,
+   "h": 32
+  },
+  {
+   "id": "1047042",
+   "name": "Black Blazer",
+   "qty": 2,
+   "slot": "Top",
+   "w": 31,
+   "h": 29
+  },
+  {
+   "id": "1057019",
+   "name": "Premium Trenchcoat",
+   "qty": 2,
+   "slot": "Overall",
+   "w": 25,
+   "h": 30
+  },
+  {
+   "id": "1047005",
+   "name": "Green Camping Shirt",
+   "qty": 1,
+   "slot": "Top",
+   "w": 32,
+   "h": 28
+  },
+  {
+   "id": "1067030",
+   "name": "Black Suit Pants",
+   "qty": 2,
+   "slot": "Bottom",
+   "w": 25,
+   "h": 29
+  },
+  {
+   "id": "1067003",
+   "name": "Green Camping Shorts",
+   "qty": 1,
+   "slot": "Bottom",
+   "w": 27,
+   "h": 22
+  },
+  {
+   "id": "1077000",
+   "name": "Black Dress Shoes",
+   "qty": 2,
+   "slot": "Shoes",
+   "w": 26,
+   "h": 22
+  },
+  {
+   "id": "1077100",
+   "name": "Brown Dress Shoes",
+   "qty": 1,
+   "slot": "Shoes",
+   "w": 25,
+   "h": 22
+  },
+  {
+   "id": "1077004",
+   "name": "Camping Boots",
+   "qty": 1,
+   "slot": "Shoes",
+   "w": 25,
+   "h": 29
+  },
+  {
+   "id": "1017000",
+   "name": "Battle Scar",
+   "qty": 2,
+   "slot": "Accessory",
+   "w": 23,
+   "h": 29
+  },
+  {
+   "id": "1057052",
+   "name": "Dark Enamel Suit",
+   "qty": 2,
+   "slot": "Overall",
+   "w": 28,
+   "h": 32
+  },
+  {
+   "id": "1007013",
+   "name": "Blue Chinese Undead Hat",
+   "qty": 1,
+   "slot": "Hat",
+   "w": 32,
+   "h": 26
+  },
+  {
+   "id": "1007135",
+   "name": "Mummy Hat",
+   "qty": 1,
+   "slot": "Hat",
+   "w": 31,
+   "h": 28
+  },
+  {
+   "id": "1017021",
+   "name": "Mummy Mask",
+   "qty": 1,
+   "slot": "Accessory",
+   "w": 27,
+   "h": 30
+  },
+  {
+   "id": "1057003",
+   "name": "Blue Chinese Undead Costume",
+   "qty": 1,
+   "slot": "Overall",
+   "w": 30,
+   "h": 31
+  },
+  {
+   "id": "1057100",
+   "name": "Mummy Suit",
+   "qty": 1,
+   "slot": "Overall",
+   "w": 28,
+   "h": 30
+  },
+  {
+   "id": "1087018",
+   "name": "White Bandage",
+   "qty": 1,
+   "slot": "Gloves",
+   "w": 30,
+   "h": 28
+  },
+  {
+   "id": "1007102",
+   "name": "Scream Mask",
+   "qty": 1,
+   "slot": "Hat",
+   "w": 31,
+   "h": 31
+  },
+  {
+   "id": "1702017",
+   "name": "Pink Rabbit Puppet",
+   "qty": 1,
+   "slot": "Weapon",
+   "w": 28,
+   "h": 32
+  },
+  {
+   "id": "1017088",
+   "name": "Ice Cold Red",
+   "qty": 1,
+   "slot": "Accessory",
+   "w": 23,
+   "h": 29
+  },
+  {
+   "id": "1057128",
+   "name": "Blue Snow Flower Wear",
+   "qty": 1,
+   "slot": "Overall",
+   "w": 24,
+   "h": 30
+  },
+  {
+   "id": "1067018",
+   "name": "Blue Polka-Dot Pajama Pants",
+   "qty": 1,
+   "slot": "Bottom",
+   "w": 25,
+   "h": 27
+  },
+  {
+   "id": "1047015",
+   "name": "Pink Snowboard Top",
+   "qty": 1,
+   "slot": "Top",
+   "w": 28,
+   "h": 29
+  }
+ ]
+}
