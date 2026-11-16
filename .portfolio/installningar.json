@@ -7,7 +7,7 @@
  "butik": "Hakushu",
  "ref": "8pxbpzn5",
  "sajtnamn": "MapleStory portfolio (test)",
- "sajt_url": "https://OliveProjects.github.io/maplestory-portfolio/maplestory/",
+ "sajt_url": "https://oliveprojects.github.io/maplestory-portfolio/maplestory/",
  "tidszon": "Europe/Stockholm",
  "webbrepo": "..",
  "undermapp": "maplestory",
@@ -15,5 +15,5 @@
   "origin"
  ],
  "wz_data": "C:\\Nexon\\Library\\maplestorycw\\appdata\\Data",
- "user_agent": "https://OliveProjects.github.io/maplestory-portfolio/maplestory/"
+ "user_agent": "https://oliveprojects.github.io/maplestory-portfolio/maplestory/"
 }

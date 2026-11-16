@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MapleStory · MapleStory portfolio (test)</title>
     <meta name="description" content="The cosmetics in my MapleStory Classic inventory, valued in mesos like a portfolio.">
-    <link rel="canonical" href="https://OliveProjects.github.io/maplestory-portfolio/maplestory/">
+    <link rel="canonical" href="https://oliveprojects.github.io/maplestory-portfolio/maplestory/">
     <!-- delning.py fills in these tags every hour (value and image time). -->
     <meta property="og:type"        content="website">
-    <meta property="og:url"         content="https://OliveProjects.github.io/maplestory-portfolio/maplestory/">
+    <meta property="og:url"         content="https://oliveprojects.github.io/maplestory-portfolio/maplestory/">
     <meta property="og:site_name"   content="MapleStory portfolio (test)">
     <meta property="og:title"       content="MapleStory · MapleStory portfolio (test)">
     <meta property="og:description" content="The cosmetics in my MapleStory Classic inventory, valued in mesos like a portfolio.">
-    <meta property="og:image"       content="https://OliveProjects.github.io/maplestory-portfolio/maplestory/og.png">
+    <meta property="og:image"       content="https://oliveprojects.github.io/maplestory-portfolio/maplestory/og.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card"       content="summary_large_image">
@@ -142,6 +142,12 @@ async function load() {
     });
     const total = rows.reduce((s, r) => s + r.value, 0);
     document.getElementById('total').textContent = whole(total);
+    if (!total) {
+        // Before the first prices: the hourly job fetches each item's history,
+        // five an hour, and builds the prices when all are fetched.
+        document.getElementById('total').textContent = 'Waiting for prices';
+        document.getElementById('updated').textContent = `The first prices come after about ${Math.ceil(rows.length / 5)} hours.`;
+    }
     const when = live && live.updated ? live.updated * 1000 : null;
     if (when) document.getElementById('updated').textContent = 'Updated ' +
         new Date(when).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ }) + '.';
