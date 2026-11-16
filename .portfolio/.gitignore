@@ -1,6 +1,6 @@
-nyckel.txt
-historik/
-agare/
-dagssvar/
-timmar.json
+api_key.txt
+history/
+owners/
+daily/
+hours.json
 __pycache__/

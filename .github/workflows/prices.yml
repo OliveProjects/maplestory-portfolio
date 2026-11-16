@@ -1,5 +1,5 @@
 # The hourly price job for your MapleStory portfolio page (added by
-# website_creator.py). It runs .portfolio/actions_steg.py every hour and
+# website_creator.py). It runs .portfolio/actions_job.py every hour and
 # commits the new prices, which GitHub Pages then publishes.
 #
 # The API key is the repo secret MAPLESTORY_MARKET_KEY (Settings → Secrets
@@ -36,10 +36,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            .portfolio/historik
-            .portfolio/agare
-            .portfolio/dagssvar
-            .portfolio/timmar.json
+            .portfolio/history
+            .portfolio/owners
+            .portfolio/daily
+            .portfolio/hours.json
           key: history-${{ github.run_id }}
           restore-keys: history-
 
@@ -48,19 +48,19 @@ jobs:
           MSM_KEY: ${{ secrets.MAPLESTORY_MARKET_KEY }}
         run: |
           if [ -z "$MSM_KEY" ]; then echo "The secret MAPLESTORY_MARKET_KEY is missing."; exit 1; fi
-          printf '%s' "$MSM_KEY" > .portfolio/nyckel.txt
-          python .portfolio/actions_steg.py
-          rm -f .portfolio/nyckel.txt
+          printf '%s' "$MSM_KEY" > .portfolio/api_key.txt
+          python .portfolio/actions_job.py
+          rm -f .portfolio/api_key.txt
 
       - name: Save the fetched history
         if: always()
         uses: actions/cache/save@v4
         with:
           path: |
-            .portfolio/historik
-            .portfolio/agare
-            .portfolio/dagssvar
-            .portfolio/timmar.json
+            .portfolio/history
+            .portfolio/owners
+            .portfolio/daily
+            .portfolio/hours.json
           key: history-${{ github.run_id }}
 
       - name: Commit the new prices

@@ -1,6 +1,6 @@
-"""Inställningarna ur installningar.json, för alla skript i mappen.
+"""Inställningarna ur settings.json, för alla skript i mappen.
 
-Kopiera installningar.exempel.json till installningar.json och fyll i den.
+Kopiera settings.example.json till settings.json och fyll i den.
 Fälten förklaras i LASMIG.md.
 """
 import json
@@ -8,10 +8,10 @@ import os
 from zoneinfo import ZoneInfo
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-_FIL = os.path.join(HERE, "installningar.json")
+_FIL = os.path.join(HERE, "settings.json")
 if not os.path.exists(_FIL):
-    raise SystemExit("installningar.json is missing: run python website_creator.py, or copy "
-                     "installningar.exempel.json to installningar.json in the same folder and fill it in.")
+    raise SystemExit("settings.json is missing: run python website_creator.py, or copy "
+                     "settings.example.json to settings.json in the same folder and fill it in.")
 _I = json.load(open(_FIL, encoding="utf-8"))
 
 KARAKTARER = _I["karaktarer"]

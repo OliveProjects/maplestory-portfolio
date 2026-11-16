@@ -1,10 +1,10 @@
 """Delningsbilden: när länken delas i t.ex. Discord syns kontots värde och
 en graf över utvecklingen.
 
-  python delning.py [--sajt <mapp>]     (sajtens rot, den mapp webbservern visar)
+  python share_image.py [--sajt <mapp>]     (sajtens rot, den mapp webbservern visar)
 
 Discord och liknande läser sidans Open Graph-taggar utan att köra skript.
-Varje timme (kor.sh, efter --live) ritas maplestory/og.png ur hourly.json:
+Varje timme (run_hourly.sh, efter --live) ritas maplestory/og.png ur hourly.json:
 kontots värde, utvecklingen senaste dygnet och en veckas graf, grön över
 startvärdet och röd under som på sidan. Taggarna i den utlagda sidan får
 värdet och bildens tid (?v=, annars visar Discord en gammal bild ur sin
@@ -25,7 +25,7 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-import installningar as inst
+import settings as inst
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SVERIGE = inst.TIDSZON
@@ -146,7 +146,7 @@ def main(args):
     if ny != html:
         with open(sida, "w", encoding="utf-8", newline="\n") as f:
             f.write(ny)
-    print("delning: %s mesos, %s" % (format(nu, ","), procent(p24)))
+    print("share_image: %s mesos, %s" % (format(nu, ","), procent(p24)))
 
 
 if __name__ == "__main__":

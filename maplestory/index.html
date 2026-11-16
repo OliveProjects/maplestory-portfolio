@@ -6,7 +6,7 @@
     <title>MapleStory · MapleStory portfolio (test)</title>
     <meta name="description" content="The cosmetics in my MapleStory Classic inventory, valued in mesos like a portfolio.">
     <link rel="canonical" href="https://oliveprojects.github.io/maplestory-portfolio/maplestory/">
-    <!-- delning.py fills in these tags every hour (value and image time). -->
+    <!-- share_image.py fills in these tags every hour (value and image time). -->
     <meta property="og:type"        content="website">
     <meta property="og:url"         content="https://oliveprojects.github.io/maplestory-portfolio/maplestory/">
     <meta property="og:site_name"   content="MapleStory portfolio (test)">
@@ -228,7 +228,7 @@ const TZ = 'Europe/Stockholm';
 const REF = '?ref=8pxbpzn5';
 /* The NX rates, per 1k NX: what it costs in mesos in the game (with the
    date each rate started) and in dollars from Nexon. Read from
-   data/nx_rates.json, which Synka.bat → 3 writes; these are the fallback.
+   data/nx_rates.json, which Sync.bat → 3 writes; these are the fallback.
    The $ chart values each day at the rate that applied then. */
 let RATES = { usd_per_1k_nx: 1, rates: [{ from: '2000-01-01', mesos_per_1k_nx: 20000 }] };
 // The game's id -> the market's id where they differ (White Label Ring).
@@ -317,7 +317,7 @@ async function load() {
     const opening = act && act.opening;
     const liveItems = (live && live.items) || {};
     const when = live && live.updated ? live.updated * 1000 : null;
-    // Prices entered by hand (Synka.bat → 5) say so next to the credit.
+    // Prices entered by hand (Sync.bat → 5) say so next to the credit.
     if (live && live.manual) document.querySelector('header .source').insertAdjacentHTML('beforeend',
         ` · prices on ${fmtDate(live.manual_date || dayOf(when))} entered by hand`);
 

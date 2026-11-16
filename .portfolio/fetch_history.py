@@ -1,15 +1,15 @@
 """Hämtar timhistoriken för varje föremål som någon gång legat i Deco-fliken.
 
-  python hamta_historik.py [--web <utcheckning>] [--sen-publicera]
+  python fetch_history.py [--web <utcheckning>] [--sen-publicera]
 
-  python hamta_historik.py --rotera --web <utcheckning>   (varje timme, kor.sh)
+  python fetch_history.py --rotera --web <utcheckning>   (varje timme, run_hourly.sh)
 
---sen-publicera kör marknadspriser.py --bakat när allt är hämtat, som bygger
+--sen-publicera kör market_prices.py --bakat när allt är hämtat, som bygger
 om prices.json och pushar. Första gången: se LASMIG.md.
 
 En fil per föremål i historik/<marknadens id>.json. Det som redan är hämtat
 hoppas över, så skriptet kan avbrytas och startas om. Nyckeln ligger i
-nyckel.txt bredvid, aldrig i webbrepot (API-villkoren: aldrig i sidans kod).
+api_key.txt bredvid, aldrig i webbrepot (API-villkoren: aldrig i sidans kod).
 
 Nyckeln får 6 anrop i timmen. Skriptet läser x-ratelimit-remaining och
 x-ratelimit-reset i varje svar och väntar till nästa timme när det är slut.
@@ -22,17 +22,17 @@ import time
 import urllib.error
 import urllib.request
 
-import installningar as inst
+import settings as inst
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-UT = os.path.join(HERE, "historik")
+UT = os.path.join(HERE, "history")
 PRICES = os.path.join(inst.data(), "prices.json")
 # Vår klients id -> marknadens, där de skiljer sig.
 TILL_MARKNAD = {"1112100": "1112222"}  # White Label Ring
 
 
 def nyckel():
-    return open(os.path.join(HERE, "nyckel.txt"), encoding="utf-8").read().strip()
+    return open(os.path.join(HERE, "api_key.txt"), encoding="utf-8").read().strip()
 
 
 def alla_id(prices=PRICES, bara_nu=False):
@@ -85,7 +85,7 @@ def rotera(prices):
 # Andra anrop som ska med i samma kö: (sökväg i API:t, fil här).
 KARAKTARER = inst.KARAKTARER
 # Senaste svaret per karaktär; tidigare dagars svar ligger kvar i shops.json.
-EXTRA = [("owners/" + k, os.path.join(HERE, "agare", "%s.json" % k)) for k in KARAKTARER]
+EXTRA = [("owners/" + k, os.path.join(HERE, "owners", "%s.json" % k)) for k in KARAKTARER]
 
 
 def spara(fil, data):
@@ -159,8 +159,8 @@ def main(args):
             vanta_till(h["x-ratelimit-reset"])
     print("klar", flush=True)
     if "--sen-publicera" in args:
-        import marknadspriser
-        marknadspriser.main(["--bakat", "--web", web])
+        import market_prices
+        market_prices.main(["--bakat", "--web", web])
 
 
 if __name__ == "__main__":

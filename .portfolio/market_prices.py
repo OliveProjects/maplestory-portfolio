@@ -1,15 +1,15 @@
 """Priser ur maplestory.market till sidan.
 
-  python marknadspriser.py --bakat [--ut <mapp>] [--ingen-push]
-      Bygger om hela prices.json ur historik/ (hamta_historik.py), en punkt
+  python market_prices.py --bakat [--ut <mapp>] [--ingen-push]
+      Bygger om hela prices.json ur historik/ (fetch_history.py), en punkt
       per dag från en vecka före första inventeringen till i dag (så långt
       bakåt som API:ts historik går). Händelsernas marknadspris i
       activity.json räknas om på samma sätt.
 
-  python marknadspriser.py --live --live-ut <fil> [--web <utcheckning>]
-      Livepriserna ur den historik som finns, varje timme (kor.sh på servern).
+  python market_prices.py --live --live-ut <fil> [--web <utcheckning>]
+      Livepriserna ur den historik som finns, varje timme (run_hourly.sh på servern).
 
-  python marknadspriser.py [--web <utcheckning>] [--remotes origin] [--ingen-push]
+  python market_prices.py [--web <utcheckning>] [--remotes origin] [--ingen-push]
       Första körningen efter midnatt sparar gårdagens sista livevärde som
       dagens punkt i prices.json. Ingen stängning: spelet går dygnet runt.
 
@@ -25,7 +25,7 @@ Git: hämtar (pull --rebase) innan något skrivs, eftersom både servern och
 datorn med spelet committar till samma repo.
 
 API-villkoren (maplestory.market/docs/api/terms): krediten och länkarna står
-på sidan, nyckeln stannar i nyckel.txt, och svaren sparas i stället för att
+på sidan, nyckeln stannar i api_key.txt, och svaren sparas i stället för att
 hämtas om. Bara procent och totaler publiceras ur historiken, aldrig gamla
 priser per föremål i bulk.
 """
@@ -41,10 +41,10 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-import installningar as inst  # noqa: E402
-from hamta_historik import KARAKTARER, TILL_MARKNAD, nyckel  # noqa: E402
+import settings as inst  # noqa: E402
+from fetch_history import KARAKTARER, TILL_MARKNAD, nyckel  # noqa: E402
 
-HISTORIK = os.path.join(HERE, "historik")
+HISTORIK = os.path.join(HERE, "history")
 SVERIGE = inst.TIDSZON  # sidans tidszon; dygnet slutar vid midnatt där
 # En dag får inte flytta priserna mer än så här utan att någon tittar. Var
 # 0,25; en dag steg kontot ~29 % på riktigt (en Founder-låda slutade säljas
@@ -241,7 +241,7 @@ def skriv_marknad(ut, post, likv, prisrader):
 def las_historik(iid):
     fil = os.path.join(HISTORIK, mid(iid) + ".json")
     if not os.path.exists(fil):
-        sys.exit("saknar historik för %s (%s), kör hamta_historik.py klart först" % (iid, mid(iid)))
+        sys.exit("saknar historik för %s (%s), kör fetch_history.py klart först" % (iid, mid(iid)))
     return json.load(open(fil, encoding="utf-8"))
 
 
@@ -283,7 +283,7 @@ def bakat(data_dir, ut):
         rader = []
     skriv_marknad(ut, updates[-1], {i: likviditet(historik[i], t, q) for i, q in updates[-1]["qty"].items()},
                   rader)
-    # En inventering i dag (dygnet är inte slut): som synka.py, en post med
+    # En inventering i dag (dygnet är inte slut): som sync.py, en post med
     # gårdagens priser och de nya antalen. Natten därpå ersätts den av en
     # riktig dagspunkt.
     senare = [u for u in gammal if u["date"] >= dag.isoformat() and u.get("qty")]
@@ -306,7 +306,7 @@ def bakat(data_dir, ut):
 
     for u in updates:
         print(u["date"], "%10s" % format(total(u), ","), "antagna antal" if u.get("assumed_qty") else "")
-    # Timmarna från första dagen, i lagret (timmar.json); servern tar över därifrån.
+    # Timmarna från första dagen, i lagret (hours.json); servern tar över därifrån.
     if ut == data_dir:
         p = timmar(data_dir, os.path.join(ut, "hourly.json"),
                    fran=matpunkt(FORSTA_DAG - datetime.timedelta(days=1)) + 3600)
@@ -348,13 +348,13 @@ def idag(data_dir, ut, live_fil):
     data = json.load(open(os.path.join(data_dir, "prices.json"), encoding="utf-8"))
     upp = data["updates"]
     d = (nu.date() - datetime.timedelta(days=1)).isoformat()
-    # En post med inventory: true (synka.py: gårdagens priser, nya antal) är
+    # En post med inventory: true (sync.py: gårdagens priser, nya antal) är
     # ingen dagspunkt; gäller den gårdagen ersätts den, med sina antal.
     synk = upp[-1] if upp[-1].get("inventory") and upp[-1]["date"] == d else None
     if upp[-1]["date"] >= d and not synk:
         return False
     if data.get("source") != "maplestory.market":
-        print("prices.json är inte byggd ur marknadens historik än (hamta_historik.py "
+        print("prices.json är inte byggd ur marknadens historik än (fetch_history.py "
               "--sen-publicera, se LASMIG.md); ingen dagspunkt")
         return False
     if not os.path.exists(live_fil):
@@ -380,8 +380,8 @@ def idag(data_dir, ut, live_fil):
     # slut publiceras priserna ändå, utan utropspremie.
     try:
         rader = api("prices")
-        os.makedirs(os.path.join(HERE, "dagssvar"), exist_ok=True)  # inte "priser/": skuggar priser.py
-        with open(os.path.join(HERE, "dagssvar", "prices_%s.json" % d), "w", encoding="utf-8") as f:
+        os.makedirs(os.path.join(HERE, "daily"), exist_ok=True)  # inte "priser/": skuggar priser.py
+        with open(os.path.join(HERE, "daily", "prices_%s.json" % d), "w", encoding="utf-8") as f:
             json.dump(rader, f)
     except urllib.error.HTTPError as e:
         print("utropspriserna gick inte att hämta: %s" % e.code)
@@ -390,7 +390,7 @@ def idag(data_dir, ut, live_fil):
     # Butikerna: svaren som omgången hämtade (404 = aldrig setts med butik).
     svar = []
     for k in KARAKTARER:
-        fil = os.path.join(HERE, "agare", k + ".json")
+        fil = os.path.join(HERE, "owners", k + ".json")
         if os.path.exists(fil):
             s = json.load(open(fil, encoding="utf-8"))
             if "owner_name" in s:
@@ -402,7 +402,7 @@ def idag(data_dir, ut, live_fil):
 # Kontovärdet timme för timme. Serverns eget lager; hourly.json i sajten är en
 # kopia utanför git, som live.json. Bara totalen per timme publiceras, inga
 # priser per föremål (API-villkoren: ingen återpublicering i bulk).
-TIMMAR = os.path.join(HERE, "timmar.json")
+TIMMAR = os.path.join(HERE, "hours.json")
 OMRAKNA_TIMMAR = 48  # varvet över föremålen tar ~9 h; äldre timmar är färdiga
 
 
@@ -453,7 +453,7 @@ def timmar(data_dir, ut_fil, fran=None):
     if fran is None:
         forsta = datetime.date.fromisoformat(upp[0]["date"])
         fran = slut - OMRAKNA_TIMMAR * 3600 if gamla else matpunkt(forsta - datetime.timedelta(days=1)) + 3600
-    # Historiken växer (hamta_historik slår ihop); fönstren går högst en vecka bakåt.
+    # Historiken växer (fetch_history slår ihop); fönstren går högst en vecka bakåt.
     historik = {i: [r for r in h if r["hour"] >= fran - 8 * 86400] or h[-1:] for i, h in historik.items()}
     punkter = [p for p in gamla if p[0] < fran]
     punkter += [[t, timvarde(historik, upp, t)] for t in range(fran, slut + 1, 3600)]

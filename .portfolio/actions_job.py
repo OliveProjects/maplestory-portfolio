@@ -2,18 +2,18 @@
 website_creator.py adds to your site repo) instead of on your own server.
 
 It lives in .portfolio/ in the site repo, next to the scripts it calls, and
-does what kor.sh does on a server, with one difference: Actions cannot wait
+does what run_hourly.sh does on a server, with one difference: Actions cannot wait
 for hours, so the first fetch of every item's history is spread over the
 hourly runs, five calls per hour, and the first price build (--bakat) runs
 by itself once everything is fetched.
 
 The API key comes from the repo secret MAPLESTORY_MARKET_KEY, written to
-nyckel.txt by the workflow and deleted after the run. The fetched history
-(historik/, agare/, dagssvar/, timmar.json) is kept in the Actions cache and
+api_key.txt by the workflow and deleted after the run. The fetched history
+(history/, owners/, daily/, hours.json) is kept in the Actions cache and
 never committed: maplestory.market's terms do not allow republishing their
 data in bulk.
 
-    python actions_steg.py
+    python actions_job.py
 """
 import json
 import os
@@ -24,12 +24,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 os.chdir(HERE)
 
-import hamta_historik as hh  # noqa: E402
-import installningar as inst  # noqa: E402
+import fetch_history as hh  # noqa: E402
+import settings as inst  # noqa: E402
 
 # The site's root: by default the folder above .portfolio/ (the repo on
 # Actions). On your own server, set PORTFOLIO_WEB to the folder the web
-# server shows, and keep the scripts and nyckel.txt outside it.
+# server shows, and keep the scripts and api_key.txt outside it.
 WEB = os.path.abspath(os.environ.get("PORTFOLIO_WEB") or os.path.join(HERE, ".."))
 DATA = inst.data(WEB)
 PRICES = os.path.join(DATA, "prices.json")
@@ -66,22 +66,22 @@ def forsta_hamtningen():
 
 def main():
     if not os.path.exists(PRICES):
-        print("No prices.json yet: run the first sync on your computer (Synka.bat).")
+        print("No prices.json yet: run the first sync on your computer (Sync.bat).")
         return
     kalla = json.load(open(PRICES, encoding="utf-8")).get("source")
     if kalla != "maplestory.market":
         if not forsta_hamtningen():
             return
         print("Every history is fetched: building the prices for the first time.", flush=True)
-        if kor("marknadspriser.py", "--bakat", "--web", WEB, "--ingen-push"):
+        if kor("market_prices.py", "--bakat", "--web", WEB, "--ingen-push"):
             sys.exit("the first price build failed")
     else:
-        kor("hamta_historik.py", "--rotera", "--web", WEB)
-    if kor("marknadspriser.py", "--live", "--web", WEB, "--live-ut", LIVE):
+        kor("fetch_history.py", "--rotera", "--web", WEB)
+    if kor("market_prices.py", "--live", "--web", WEB, "--live-ut", LIVE):
         print("ERROR: the live prices were not updated")
-    kor("delning.py", "--sajt", WEB)
+    kor("share_image.py", "--sajt", WEB)
     # Yesterday's last live value becomes today's point, on the first run after midnight.
-    if kor("marknadspriser.py", "--web", WEB, "--live-ut", LIVE, "--ingen-push"):
+    if kor("market_prices.py", "--web", WEB, "--live-ut", LIVE, "--ingen-push"):
         print("ERROR: yesterday's point was not saved")
 
 
