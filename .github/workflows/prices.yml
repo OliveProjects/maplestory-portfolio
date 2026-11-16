@@ -1,0 +1,74 @@
+# The hourly price job for your MapleStory portfolio page (added by
+# website_creator.py). It runs .portfolio/actions_steg.py every hour and
+# commits the new prices, which GitHub Pages then publishes.
+#
+# The API key is the repo secret MAPLESTORY_MARKET_KEY (Settings → Secrets
+# and variables → Actions). The fetched price history stays in the Actions
+# cache and is never committed (maplestory.market's terms).
+name: Prices
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install --quiet Pillow
+
+      - name: Restore the fetched history
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .portfolio/historik
+            .portfolio/agare
+            .portfolio/dagssvar
+            .portfolio/timmar.json
+          key: history-${{ github.run_id }}
+          restore-keys: history-
+
+      - name: Fetch and build prices
+        env:
+          MSM_KEY: ${{ secrets.MAPLESTORY_MARKET_KEY }}
+        run: |
+          if [ -z "$MSM_KEY" ]; then echo "The secret MAPLESTORY_MARKET_KEY is missing."; exit 1; fi
+          printf '%s' "$MSM_KEY" > .portfolio/nyckel.txt
+          python .portfolio/actions_steg.py
+          rm -f .portfolio/nyckel.txt
+
+      - name: Save the fetched history
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .portfolio/historik
+            .portfolio/agare
+            .portfolio/dagssvar
+            .portfolio/timmar.json
+          key: history-${{ github.run_id }}
+
+      - name: Commit the new prices
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A maplestory
+          if git diff --cached --quiet; then echo "Nothing new."; exit 0; fi
+          git commit -q -m "MapleStory prices"
+          git pull -q --rebase
+          git push -q
