@@ -107,7 +107,7 @@
         .item .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
         .item .meta b { color: var(--ink); font-weight: 600; }
         .item .more { display: none; }
-        .item.open { grid-column: 1 / -1; cursor: default; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 24px; }
+        .item.open { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 24px; }
         .item.open .more { display: block; border-left: 1px solid var(--rule); padding-left: 24px; }
         .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 20px; margin: 12px 0 0; }
         .facts dd { margin: 2px 0 0; font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
@@ -472,8 +472,8 @@ async function load() {
     document.getElementById('items').addEventListener('click', e => {
         if (e.target.closest('a')) return;
         const el = e.target.closest('.item'); if (!el) return;
-        if (e.target.closest('.close')) { open = null; drawItems(); return; }
-        if (open === el.dataset.id) return;
+        // A click on an open card closes it again (and so does × or Esc).
+        if (e.target.closest('.close') || open === el.dataset.id) { open = null; drawItems(); return; }
         open = el.dataset.id; drawItems();
         document.querySelector(`.item[data-id="${open}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
