@@ -226,10 +226,11 @@
 <script>
 const TZ = 'Europe/Stockholm';
 const REF = '?ref=8pxbpzn5';
-/* The NX rates for the tiles and the $ chart, per 1k NX: what 1k NX costs
-   in mesos in the game, and in dollars from Nexon. Change them here when
-   the game's rate moves. */
-const MESOS_PER_1K_NX = 20000, USD_PER_1K_NX = 1;
+/* The NX rates, per 1k NX: what it costs in mesos in the game (with the
+   date each rate started) and in dollars from Nexon. Read from
+   data/nx_rates.json, which Synka.bat → 3 writes; these are the fallback.
+   The $ chart values each day at the rate that applied then. */
+let RATES = { usd_per_1k_nx: 1, rates: [{ from: '2000-01-01', mesos_per_1k_nx: 20000 }] };
 // The game's id -> the market's id where they differ (White Label Ring).
 const MARKET_ID = { '1112100': '1112222' };
 const marketLink = id => `https://maplestory.market/items/${MARKET_ID[id] || id}${REF}`;
@@ -246,7 +247,8 @@ const signed = n => (n >= 0 ? '+' : '−') + short(Math.abs(n));
 const pct = p => (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
 const usd = n => '$' + Math.round(n).toLocaleString('en-US');
 const usdSigned = n => (n >= 0 ? '+' : '−') + usd(Math.abs(n));
-const toUsd = mesos => mesos / MESOS_PER_1K_NX * USD_PER_1K_NX;
+const rateOn = day => RATES.rates.reduce((k, r) => r.from <= day ? r : k, RATES.rates[0]);
+const toUsd = (mesos, t = Date.now()) => mesos / rateOn(dayOf(t)).mesos_per_1k_nx * RATES.usd_per_1k_nx;
 const cls = v => v >= 0 ? 'up' : 'down';
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dayOf = ms => new Date(ms).toLocaleDateString('sv-SE', { timeZone: TZ });
@@ -301,8 +303,9 @@ function drawLine(svg, tip, pts, { H, fmt, label }) {
 }
 
 async function load() {
-    const [inv, prices, act, live, hourly, shops] = await Promise.all(
-        ['inventory.json', 'prices.json', 'activity.json', 'live.json', 'hourly.json', 'shops.json'].map(get));
+    const [inv, prices, act, live, hourly, shops, rates] = await Promise.all(
+        ['inventory.json', 'prices.json', 'activity.json', 'live.json', 'hourly.json', 'shops.json', 'nx_rates.json'].map(get));
+    if (rates && rates.rates && rates.rates.length) RATES = rates;
     if (!inv || !prices || !prices.updates || !prices.updates.length) {
         document.getElementById('total').textContent = 'No data yet';
         document.getElementById('unit').textContent = '';
@@ -376,11 +379,12 @@ async function load() {
                          : tile('Realised', '–', 'nothing sold yet');
     tiles += tile('Items', whole(rows.reduce((s, r) => s + r.qty, 0)), `in ${rows.length} kinds`);
     document.getElementById('tiles').innerHTML = tiles;
-    const nx = total / MESOS_PER_1K_NX * 1000;
+    const nu = rateOn(dayOf(when || Date.now()));
+    const nx = total / nu.mesos_per_1k_nx * 1000;
     document.getElementById('rates').innerHTML =
-        tile('Mesos : NX', `${short(MESOS_PER_1K_NX)} : 1k`, 'in game') +
-        tile('NX : $', `1k : $${USD_PER_1K_NX}`, 'from Nexon') +
-        tile('Worth', total ? usd(toUsd(total)) : '–', total ? `${nx >= 1e6 ? +(nx / 1e6).toFixed(2) + 'm' : short(nx)} NX` : '');
+        tile('Mesos : NX', `${short(nu.mesos_per_1k_nx)} : 1k`, nu.from > '2000-01-01' ? `in game, since ${fmtDate(nu.from)}` : 'in game') +
+        tile('NX : $', `1k : $${RATES.usd_per_1k_nx}`, 'from Nexon') +
+        tile('Worth', total ? usd(toUsd(total, when || Date.now())) : '–', total ? `${nx >= 1e6 ? +(nx / 1e6).toFixed(2) + 'm' : short(nx)} NX` : '');
 
     // The value series: daily points with each day's quantities, then the
     // hours after the last day, then the live value. Each point keeps the
@@ -420,7 +424,7 @@ async function load() {
         return series.slice(i0);
     };
     const changeOf = s => s.length < 2 ? null : mode === 'pct' ? (s[s.length - 1].idx / s[0].idx - 1) * 100
-        : mode === 'usd' ? toUsd(s[s.length - 1].v - s[0].v) : s[s.length - 1].v - s[0].v;
+        : mode === 'usd' ? toUsd(s[s.length - 1].v, s[s.length - 1].t) - toUsd(s[0].v, s[0].t) : s[s.length - 1].v - s[0].v;
     const fmtChange = v => v === null ? '–' : mode === 'pct' ? pct(v) : mode === 'usd' ? usdSigned(v) : signed(v);
     function drawChart() {
         document.getElementById('ranges').innerHTML = RANGES.map(([n]) => {
@@ -434,7 +438,7 @@ async function load() {
         el.innerHTML = c === null ? '&nbsp;' : `<span class="${cls(c)}">${fmtChange(c)}</span>`;
         const base = s.length ? s[0].idx : 1;
         drawLine(document.getElementById('chart'), document.getElementById('tip'),
-            s.map(p => ({ t: p.t, v: mode === 'pct' ? (p.idx / base - 1) * 100 : mode === 'usd' ? toUsd(p.v) : p.v })),
+            s.map(p => ({ t: p.t, v: mode === 'pct' ? (p.idx / base - 1) * 100 : mode === 'usd' ? toUsd(p.v, p.t) : p.v })),
             { H: 220, fmt: v => mode === 'pct' ? v.toFixed(1) + '%' : mode === 'usd' ? usd(v) : short(v),
               label: v => mode === 'pct' ? pct(v) : mode === 'usd' ? usd(v) : whole(v) });
     }
