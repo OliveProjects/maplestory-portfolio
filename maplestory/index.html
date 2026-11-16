@@ -17,85 +17,121 @@
     <meta property="og:image:height" content="630">
     <meta name="twitter:card"       content="summary_large_image">
     <!--
-      The page's own look: light paper with ink, the system's fonts, rules
-      and tables instead of boxes, and a dark mode. Colours are the
-      variables just below; the data in data/ stays the same whatever you
-      change here. Keep the credit to maplestory.market (their API terms).
+      Layout: the value with its tiles next to the chart, then the inventory
+      as cards that open on a click (price chart and facts), then the
+      activity. Colours are the variables just below, with a dark mode. The
+      data in data/ stays the same whatever you change here. Keep the credit
+      to maplestory.market (their API terms, point 2).
     -->
     <style>
         :root {
             color-scheme: light dark;
-            --paper: #f7f4ee; --ink: #1d1b18; --muted: #6f6a62; --rule: #e2ddd3; --row: #efeae1;
-            --accent: #5b4bb7; --up: #1b8a4c; --down: #c8372d; --area: rgba(91, 75, 183, 0.10);
+            --paper: #f5f2eb; --surface: #ffffff; --ink: #1d1b18; --muted: #6f6a62; --rule: #e3ded4;
+            --accent: #5b4bb7; --accent-soft: rgba(91, 75, 183, 0.10); --up: #1b8a4c; --down: #c8372d;
+            --shadow: 0 1px 2px rgba(29, 27, 24, 0.06);
         }
         @media (prefers-color-scheme: dark) {
-            :root { --paper: #17161a; --ink: #ecebef; --muted: #9a97a3; --rule: #2c2a31; --row: #201f25;
-                    --accent: #a597ff; --up: #4cc38a; --down: #ff6b5e; --area: rgba(165, 151, 255, 0.12); }
+            :root { --paper: #141317; --surface: #1d1c22; --ink: #ecebef; --muted: #9a97a3; --rule: #2e2c34;
+                    --accent: #a597ff; --accent-soft: rgba(165, 151, 255, 0.12); --up: #4cc38a; --down: #ff6b5e;
+                    --shadow: none; }
         }
         * { box-sizing: border-box; }
         body { margin: 0; background: var(--paper); color: var(--ink);
-               font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-        main { max-width: 1000px; margin: 0 auto; padding: 40px 20px 56px; }
-        a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
-
-        header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px;
-                 padding-bottom: 18px; border-bottom: 2px solid var(--ink); }
-        h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; }
-        .lead { margin: 4px 0 0; color: var(--muted); font-size: 15px; }
-        .source { font-size: 13px; color: var(--muted); white-space: nowrap; }
-
-        .value { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr)); margin: 28px 0 8px; }
-        .value > div { padding: 0 20px; border-left: 1px solid var(--rule); }
-        .value > div:first-child { padding-left: 0; border-left: 0; }
-        .label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-        .big { font-size: 38px; font-weight: 700; letter-spacing: -0.8px; font-variant-numeric: tabular-nums; line-height: 1.15; }
-        .mid { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; }
-        .note { font-size: 13px; color: var(--muted); }
+               font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 56px; }
+        a { color: var(--accent); text-underline-offset: 2px; }
         .up { color: var(--up); } .down { color: var(--down); }
+        .muted { color: var(--muted); }
+        .label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+        .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); }
 
-        h2 { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-             margin: 44px 0 14px; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; }
-        .ranges { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; }
-        .ranges button { font: inherit; font-size: 12px; letter-spacing: 0.04em; padding: 3px 12px; border: 0; border-radius: 999px;
-                         background: none; color: var(--muted); cursor: pointer; }
-        .ranges button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-        .chart { position: relative; }
-        svg { width: 100%; height: 240px; display: block; }
+        header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; margin-bottom: 24px; }
+        h1 { margin: 0; font-size: 24px; letter-spacing: -0.3px; }
+        .lead { margin: 2px 0 0; color: var(--muted); }
+        .source { font-size: 13px; color: var(--muted); }
+
+        /* The value and its tiles, next to the chart. */
+        .top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 20px; align-items: start; }
+        .value .when { font-size: 12px; color: var(--muted); }
+        .total { font-size: 44px; font-weight: 750; letter-spacing: -1px; line-height: 1.1; font-variant-numeric: tabular-nums; margin: 2px 0; }
+        .total small { font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--muted); margin-left: 6px; }
+        .change { font-weight: 650; font-variant-numeric: tabular-nums; }
+        .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 18px; }
+        .tile { padding: 10px 12px; }
+        .tile b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+        .tile > span { font-size: 12px; color: var(--muted); }
+
+        .chart-panel { padding: 16px 16px 12px; }
+        .chart-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+        .chart-head .big { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .toggle { margin-left: auto; display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+        .toggle button { font: inherit; font-size: 12px; padding: 4px 10px; border: 0; background: none; color: var(--muted); cursor: pointer; }
+        .toggle button + button { border-left: 1px solid var(--rule); }
+        .toggle button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+        .chart { position: relative; margin-top: 8px; }
+        svg { width: 100%; display: block; }
         svg .grid { stroke: var(--rule); stroke-width: 1; }
+        svg .base { stroke: var(--muted); stroke-dasharray: 3 4; stroke-width: 1; opacity: 0.6; }
         svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
-        .tip { position: absolute; top: 0; pointer-events: none; background: var(--ink); color: var(--paper);
-               font-size: 12px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translateX(-50%); display: none; }
+        .tip { position: absolute; top: -6px; pointer-events: none; background: var(--ink); color: var(--paper); font-size: 12px;
+               padding: 3px 8px; border-radius: 4px; white-space: nowrap; transform: translateX(-50%); display: none; }
+        .ranges { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 10px; border-top: 1px solid var(--rule); }
+        .ranges button { font: inherit; border: 0; background: none; color: var(--ink); cursor: pointer; padding: 8px 0 2px; }
+        .ranges button b { display: block; font-size: 12px; letter-spacing: 0.04em; }
+        .ranges button span { font-size: 12px; font-variant-numeric: tabular-nums; }
+        .ranges button[aria-pressed="true"] b { color: var(--accent); }
 
-        .table-wrap { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
-        th, td { padding: 8px 10px; text-align: right; white-space: nowrap; }
-        th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
-        thead th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600;
-                   border-bottom: 1px solid var(--ink); cursor: pointer; user-select: none; }
-        thead th[aria-sort] { color: var(--ink); }
-        tbody tr:nth-child(even) { background: var(--row); }
-        td.icon { width: 44px; padding-right: 0; }
-        td img { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; vertical-align: middle; }
-        td a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--rule); }
-        td a:hover { border-color: var(--accent); }
-        .slot { color: var(--muted); font-size: 12px; margin-left: 6px; }
-        .share { display: inline-block; width: 46px; height: 4px; background: var(--rule); vertical-align: middle; margin-left: 8px; }
-        .share i { display: block; height: 100%; background: var(--accent); }
+        h2 { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; margin: 40px 0 12px; }
+        .bar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+        .sort button { font: inherit; font-size: 12px; padding: 5px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); color: var(--muted); cursor: pointer; }
+        .sort button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); }
 
-        .activity { list-style: none; margin: 0; padding: 0; font-size: 14px; }
-        .activity .month { margin: 18px 0 6px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-        .activity li.e { display: grid; grid-template-columns: 70px 90px 1fr auto; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--rule); }
+        /* Item cards: a click opens a card across the whole row. */
+        .items { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; }
+        .item { cursor: pointer; padding: 14px; position: relative; }
+        .item:hover { border-color: var(--muted); }
+        .item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .item .row1 { display: flex; gap: 12px; align-items: center; }
+        .item .ic { width: 48px; height: 48px; border-radius: 50%; background: var(--accent-soft); display: grid; place-items: center; flex: none; }
+        .item .ic img { max-width: 36px; max-height: 36px; image-rendering: pixelated; }
+        .item .nm { font-weight: 650; }
+        .item .nm a { color: inherit; text-decoration: none; }
+        .item .nm a:hover { text-decoration: underline; }
+        .item .slot { font-size: 12px; color: var(--muted); }
+        .item .row2 { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; }
+        .item .val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .item .ret { font-size: 13px; font-weight: 650; padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+        .item .ret.up { background: rgba(27, 138, 76, 0.10); } .item .ret.down { background: rgba(200, 55, 45, 0.10); }
+        .item .share { height: 3px; background: var(--rule); margin: 8px 0 6px; border-radius: 2px; overflow: hidden; }
+        .item .share i { display: block; height: 100%; background: var(--accent); }
+        .item .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+        .item .meta b { color: var(--ink); font-weight: 600; }
+        .item .more { display: none; }
+        .item.open { grid-column: 1 / -1; cursor: default; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 24px; }
+        .item.open .more { display: block; border-left: 1px solid var(--rule); padding-left: 24px; }
+        .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 20px; margin: 12px 0 0; }
+        .facts dd { margin: 2px 0 0; font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
+        .facts small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+        .hist { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+        .hist b { color: var(--ink); }
+        .close { position: absolute; top: 8px; right: 10px; font: inherit; font-size: 18px; border: 0; background: none; color: var(--muted); cursor: pointer; display: none; }
+        .item.open .close { display: block; }
+
+        .activity { list-style: none; margin: 0; padding: 4px 16px; font-size: 14px; }
+        .activity .month { padding: 12px 0 4px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+        .activity li.e { display: grid; grid-template-columns: 70px 90px 1fr auto; gap: 12px; padding: 7px 0; border-top: 1px solid var(--rule); }
         .tag { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 650; }
         .tag.buy { color: var(--up); } .tag.sell { color: var(--accent); } .tag.out { color: var(--muted); }
 
-        footer { margin-top: 52px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; }
+        footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; }
         footer p { margin: 4px 0; }
 
-        @media (max-width: 720px) {
-            .value { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 18px; }
-            .value > div:first-child { grid-column: 1 / -1; }
-            .value > div:nth-child(2) { padding-left: 0; border-left: 0; }
-            .big { font-size: 32px; } .mid { font-size: 18px; }
+        @media (max-width: 900px) { .top { grid-template-columns: minmax(0, 1fr); } }
+        @media (max-width: 640px) {
+            .total { font-size: 36px; }
+            .tile { padding: 8px 10px; } .tile b { font-size: 16px; }
+            .item.open { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+            .item.open .more { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); padding-top: 14px; }
             .activity li.e { grid-template-columns: 56px 1fr auto; }
             .activity li.e .when { display: none; }
         }
@@ -113,26 +149,44 @@
         <span class="source">Prices from <a href="https://maplestory.market/?ref=8pxbpzn5">maplestory.market</a></span>
     </header>
 
-    <section class="value">
-        <div>
-            <div class="label" id="updated">Value</div>
-            <div class="big"><span id="total">–</span></div>
-            <div class="note" id="unit">mesos</div>
+    <section class="top">
+        <div class="value">
+            <div class="when" id="updated">&nbsp;</div>
+            <div class="total"><span id="total">–</span><small id="unit">mesos</small></div>
+            <div class="change" id="change">&nbsp;</div>
+            <div class="tiles" id="tiles"></div>
+            <div class="tiles" id="rates"></div>
         </div>
-        <div id="f1"></div>
-        <div id="f2"></div>
-        <div id="f3"></div>
+        <div class="panel chart-panel" id="chart-panel">
+            <div class="chart-head">
+                <span class="label" id="chart-label">Market value</span>
+                <div class="toggle" id="mode" role="group" aria-label="Show the chart in">
+                    <button type="button" data-m="mesos" aria-pressed="true">Mesos</button>
+                    <button type="button" data-m="pct" aria-pressed="false">%</button>
+                    <button type="button" data-m="usd" aria-pressed="false">$</button>
+                </div>
+            </div>
+            <div class="big" id="chart-change">&nbsp;</div>
+            <div class="chart"><svg id="chart" role="img" aria-label="Portfolio value over time"></svg><div class="tip" id="tip"></div></div>
+            <div class="ranges" id="ranges" role="group" aria-label="Chart range"></div>
+        </div>
     </section>
 
-    <h2>Value over time <span class="ranges" id="ranges" role="group" aria-label="Chart range"></span></h2>
-    <div class="chart"><svg id="chart" role="img" aria-label="Portfolio value over time"></svg><div class="tip" id="tip"></div></div>
-
     <h2>Inventory</h2>
-    <div class="table-wrap"><table id="items"></table></div>
+    <div class="bar-row">
+        <span class="muted" id="concentration"></span>
+        <div class="sort" id="sort" role="group" aria-label="Sort the inventory">
+            <button type="button" data-s="value" aria-pressed="true">By value</button>
+            <button type="button" data-s="ret" aria-pressed="false">By return</button>
+            <button type="button" data-s="c24" aria-pressed="false">24 hours</button>
+            <button type="button" data-s="d7" aria-pressed="false">7 days</button>
+        </div>
+    </div>
+    <div class="items" id="items"></div>
 
     <h2>Activity</h2>
-    <p class="note" id="shops" hidden></p>
-    <ul class="activity" id="activity"></ul>
+    <p class="muted" id="shops" hidden></p>
+    <ul class="activity panel" id="activity"></ul>
 
     <footer>
         <p>Prices from <a href="https://maplestory.market/?ref=8pxbpzn5">maplestory.market</a>. Icons from the game's own files.</p>
@@ -142,6 +196,10 @@
 <script>
 const TZ = 'Europe/Stockholm';
 const REF = '?ref=8pxbpzn5';
+/* The NX rates for the tiles and the $ chart, per 1k NX: what 1k NX costs
+   in mesos in the game, and in dollars from Nexon. Change them here when
+   the game's rate moves. */
+const MESOS_PER_1K_NX = 20000, USD_PER_1K_NX = 1;
 // The game's id -> the market's id where they differ (White Label Ring).
 const MARKET_ID = { '1112100': '1112222' };
 const marketLink = id => `https://maplestory.market/items/${MARKET_ID[id] || id}${REF}`;
@@ -156,6 +214,9 @@ const short = n => {
 };
 const signed = n => (n >= 0 ? '+' : '−') + short(Math.abs(n));
 const pct = p => (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
+const usd = n => '$' + Math.round(n).toLocaleString('en-US');
+const usdSigned = n => (n >= 0 ? '+' : '−') + usd(Math.abs(n));
+const toUsd = mesos => mesos / MESOS_PER_1K_NX * USD_PER_1K_NX;
 const cls = v => v >= 0 ? 'up' : 'down';
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dayOf = ms => new Date(ms).toLocaleDateString('sv-SE', { timeZone: TZ });
@@ -163,25 +224,70 @@ const fmtDate = (d, year = false) => new Date(d + 'T12:00:00Z').toLocaleDateStri
     { day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' });
 const fmtTime = ms => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ });
 const get = f => fetch(`data/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null);
-const fact = (id, label, value, note) => { document.getElementById(id).innerHTML =
-    `<div class="label">${label}</div><div class="mid">${value}</div><div class="note">${note}</div>`; };
+
+/* A line chart in an svg: green above the first value and red below, the
+   first value dashed, the value axis on the right. fmt formats the axis. */
+function drawLine(svg, tip, pts, { H, fmt, label }) {
+    if (pts.length < 2) { svg.setAttribute('viewBox', `0 0 300 ${H}`); svg.innerHTML = `<text x="0" y="20">Not enough data yet.</text>`; return; }
+    const W = svg.clientWidth || 600, R = 56, B = 22, T = 10;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.style.height = H + 'px';
+    const lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v));
+    const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.02 || 1;
+    const y0 = lo - pad, y1 = hi + pad, t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+    const X = t => (t - t0) / (t1 - t0 || 1) * (W - R);
+    const Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - B - T);
+    const base = pts[0].v, id = 'g' + Math.random().toString(36).slice(2);
+    const split = Math.max(0, Math.min(1, Y(base) / H));
+    let g = '';
+    for (let i = 0; i <= 3; i++) {
+        const v = y0 + (y1 - y0) * i / 3;
+        g += `<line class="grid" x1="0" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"></line><text x="${W - R + 8}" y="${Y(v) + 4}">${fmt(v)}</text>`;
+    }
+    const days = (t1 - t0) / 864e5;
+    const lbl = t => days < 2 ? new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : fmtDate(dayOf(t));
+    for (let i = 0; i <= 4; i++) {
+        const t = t0 + (t1 - t0) * i / 4;
+        g += `<text x="${X(t)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${lbl(t)}</text>`;
+    }
+    const line = pts.map(p => X(p.t).toFixed(1) + ',' + Y(p.v).toFixed(1)).join(' ');
+    svg.innerHTML = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="${H}" gradientUnits="userSpaceOnUse">
+            <stop offset="${split}" stop-color="var(--up)"></stop><stop offset="${split}" stop-color="var(--down)"></stop></linearGradient></defs>` + g +
+        `<line class="base" x1="0" x2="${W - R}" y1="${Y(base)}" y2="${Y(base)}"></line>` +
+        `<polygon fill="var(--accent-soft)" points="${X(t0)},${H - B} ${line} ${X(t1)},${H - B}"></polygon>` +
+        `<polyline fill="none" stroke="url(#${id})" stroke-width="2" stroke-linejoin="round" points="${line}"></polyline>` +
+        `<circle r="4" fill="var(--ink)" visibility="hidden"></circle>`;
+    const dot = svg.querySelector('circle');
+    svg.onpointermove = e => {
+        const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W;
+        let p = pts[0];
+        pts.forEach(q => { if (Math.abs(X(q.t) - x) < Math.abs(X(p.t) - x)) p = q; });
+        dot.setAttribute('cx', X(p.t)); dot.setAttribute('cy', Y(p.v)); dot.setAttribute('visibility', 'visible');
+        tip.textContent = `${fmtTime(p.t)} · ${label(p.v)}`;
+        tip.style.left = Math.min(Math.max(X(p.t) / W * r.width, 90), r.width - 90) + 'px';
+        tip.style.display = 'block';
+    };
+    svg.onpointerleave = () => { tip.style.display = 'none'; dot.setAttribute('visibility', 'hidden'); };
+}
 
 async function load() {
     const [inv, prices, act, live, hourly, shops] = await Promise.all(
         ['inventory.json', 'prices.json', 'activity.json', 'live.json', 'hourly.json', 'shops.json'].map(get));
     if (!inv || !prices || !prices.updates || !prices.updates.length) {
         document.getElementById('total').textContent = 'No data yet';
-        document.getElementById('unit').textContent = 'Run the first sync on your computer.';
+        document.getElementById('unit').textContent = '';
+        document.getElementById('change').textContent = 'Run the first sync on your computer.';
         return;
     }
     const updates = prices.updates;
     const events = (act && act.events) || [];
     const opening = act && act.opening;
+    const liveItems = (live && live.items) || {};
+    const when = live && live.updated ? live.updated * 1000 : null;
 
     // Latest price per item: the live price when there is one, else the last daily one.
     const lastPrice = {};
     updates.forEach(u => Object.assign(lastPrice, u.prices));
-    const liveItems = (live && live.items) || {};
     Object.entries(liveItems).forEach(([id, x]) => { if (x.p) lastPrice[id] = x.p; });
 
     // Average cost per item, like a share: the opening holdings at their
@@ -199,117 +305,190 @@ async function load() {
         return avg;
     }
 
+    // Each item's daily price series, for its card and the 7-day sort.
+    const days = updates.filter(u => !u.inventory);
+    const itemSeries = id => {
+        const s = days.filter(u => u.prices[id]).map(u => ({ t: Date.parse(u.date + 'T23:59:00Z'), v: u.prices[id], d: u.date }));
+        if (liveItems[id]?.p && when) s.push({ t: when, v: liveItems[id].p, d: dayOf(when) });
+        return s;
+    };
+    const weekAgo = (when || Date.now()) - 7 * 864e5;
     const rows = inv.items.map(it => {
-        const price = lastPrice[it.id];
-        const c = cost(it.id);
-        return { ...it, price, value: price ? price * it.qty : 0, cost: c,
-                 ret: price && c ? (price / c - 1) * 100 : null, c24: liveItems[it.id]?.c24 ?? null };
+        const price = lastPrice[it.id], c = cost(it.id), s = itemSeries(it.id);
+        const old = [...s].reverse().find(p => p.t <= weekAgo);
+        return { ...it, price, value: price ? price * it.qty : 0, cost: c, series: s,
+                 ret: price && c ? (price / c - 1) * 100 : null, c24: liveItems[it.id]?.c24 ?? null,
+                 d7: price && old ? (price / old.v - 1) * 100 : null, since: s.length ? s[0] : null };
     });
     const total = rows.reduce((s, r) => s + r.value, 0);
-    const when = live && live.updated ? live.updated * 1000 : null;
-    document.getElementById('total').textContent = whole(total);
-    if (when) document.getElementById('updated').textContent = 'Value · ' + fmtTime(when);
+    document.getElementById('total').textContent = total ? whole(total) : 'Waiting for prices';
     if (!total) {
-        // Before the first prices: the hourly job fetches each item's history,
-        // five an hour, and builds the prices when all are fetched.
-        document.getElementById('total').textContent = 'Waiting for prices';
-        document.getElementById('unit').textContent = `The first prices come after about ${Math.ceil(rows.length / 5)} hours.`;
+        // The hourly job fetches each item's history, five an hour, and
+        // builds the prices when all are fetched.
+        document.getElementById('unit').hidden = true;
+        document.getElementById('change').textContent = `The first prices come after about ${Math.ceil(rows.length / 5)} hours.`;
     }
+    if (when) document.getElementById('updated').textContent = 'Updated ' + fmtTime(when);
 
-    // Unrealised and realised return, items.
-    const held = rows.filter(r => r.cost !== undefined);
-    if (total && held.length === rows.length) {
-        const paid = held.reduce((s, r) => s + r.cost * r.qty, 0);
-        const unreal = total - paid;
-        fact('f1', 'Unrealised', `<span class="${cls(unreal)}">${signed(unreal)}</span>`, `${pct(unreal / paid * 100)} on ${short(paid)} paid`);
-    } else fact('f1', 'Unrealised', '–', 'needs prices and costs');
+    // Return on what was paid, and the tiles.
+    const paid = rows.every(r => r.cost !== undefined) ? rows.reduce((s, r) => s + r.cost * r.qty, 0) : 0;
     const sold = events.filter(e => e.delta < 0 && e.sold_price && cost(e.id, e) !== undefined);
-    if (sold.length) {
-        const real = sold.reduce((s, e) => s + (e.sold_price - cost(e.id, e)) * -e.delta, 0);
-        fact('f2', 'Realised', `<span class="${cls(real)}">${signed(real)}</span>`, `on ${sold.reduce((s, e) => s - e.delta, 0)} sold`);
-    } else fact('f2', 'Realised', '–', 'nothing sold yet');
-    fact('f3', 'Items', whole(rows.reduce((s, r) => s + r.qty, 0)), `in ${rows.length} kinds`);
+    const real = sold.reduce((s, e) => s + (e.sold_price - cost(e.id, e)) * -e.delta, 0);
+    const soldCost = sold.reduce((s, e) => s + cost(e.id, e) * -e.delta, 0);
+    const tile = (label, value, note) => `<div class="panel tile"><div class="label">${label}</div><b>${value}</b><span>${note}</span></div>`;
+    let tiles = '';
+    if (total && paid) {
+        const unreal = total - paid, all = unreal + real, p = all / (paid + soldCost) * 100;
+        document.getElementById('change').innerHTML = `<span class="${cls(all)}">${signed(all)} (${pct(p)})</span> <span class="muted">on what I paid</span>`;
+        tiles += tile('Unrealised', `<span class="${cls(unreal)}">${signed(unreal)}</span>`, `on ${short(paid)} paid`);
+    } else tiles += tile('Unrealised', '–', 'needs prices and costs');
+    tiles += sold.length ? tile('Realised', `<span class="${cls(real)}">${signed(real)}</span>`, `on ${sold.reduce((s, e) => s - e.delta, 0)} sold`)
+                         : tile('Realised', '–', 'nothing sold yet');
+    tiles += tile('Items', whole(rows.reduce((s, r) => s + r.qty, 0)), `in ${rows.length} kinds`);
+    document.getElementById('tiles').innerHTML = tiles;
+    const nx = total / MESOS_PER_1K_NX * 1000;
+    document.getElementById('rates').innerHTML =
+        tile('Mesos : NX', `${short(MESOS_PER_1K_NX)} : 1k`, 'in game') +
+        tile('NX : $', `1k : $${USD_PER_1K_NX}`, 'from Nexon') +
+        tile('Worth', total ? usd(toUsd(total)) : '–', total ? `${nx >= 1e6 ? +(nx / 1e6).toFixed(2) + 'm' : short(nx)} NX` : '');
 
-    // The value series: one point per day, each day's own quantities, then
-    // the hours from hourly.json after the last day, and the live value.
-    const series = updates.filter(u => !u.inventory).map(u => ({
-        t: Date.parse(u.date + 'T23:59:00Z'),
-        v: Object.entries(u.qty || {}).reduce((s, [id, n]) => s + (u.prices[id] || 0) * n, 0),
-    })).filter(p => p.v > 0);
+    // The value series: daily points with each day's quantities, then the
+    // hours after the last day, then the live value. Each point keeps the
+    // quantities it was valued with, for the time-weighted % mode.
+    const qtyAt = d => (updates.filter(u => u.date <= d).pop() || updates[0]);
+    const series = days.map(u => ({ t: Date.parse(u.date + 'T23:59:00Z'), d: u.date,
+        v: Object.entries(u.qty || {}).reduce((s, [id, n]) => s + (u.prices[id] || 0) * n, 0) })).filter(p => p.v > 0);
     const lastDay = series.length ? series[series.length - 1].t : 0;
-    ((hourly && hourly.points) || []).forEach(([t, v]) => { if (t * 1000 > lastDay && v > 0) series.push({ t: t * 1000, v }); });
-    if (when && total) series.push({ t: when, v: total });
+    ((hourly && hourly.points) || []).forEach(([t, v]) => { if (t * 1000 > lastDay && v > 0) series.push({ t: t * 1000, v, d: dayOf(t * 1000) }); });
+    if (when && total) series.push({ t: when, v: total, d: dayOf(when) });
     series.sort((a, b) => a.t - b.t);
-
-    const RANGES = [['7D', 7], ['1M', 30], ['All', Infinity]];
-    let range = 'All';
-    const ranges = document.getElementById('ranges');
-    const svg = document.getElementById('chart'), tip = document.getElementById('tip');
-    let shown = [], X, Y;
-    function drawChart() {
-        ranges.innerHTML = RANGES.map(([n]) => `<button type="button" data-r="${n}" aria-pressed="${n === range}">${n}</button>`).join('');
-        const days = RANGES.find(r => r[0] === range)[1];
-        const end = series.length ? series[series.length - 1].t : Date.now();
-        shown = series.filter(p => p.t >= end - days * 864e5);
-        if (shown.length < 2) { svg.innerHTML = '<text x="0" y="20">The chart appears after a couple of days with prices.</text>'; return; }
-        const W = svg.clientWidth || 900, H = 240, R = 58, B = 22, T = 10;
-        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-        const lo = Math.min(...shown.map(p => p.v)), hi = Math.max(...shown.map(p => p.v));
-        const pad = (hi - lo) * 0.08 || hi * 0.02 || 1;
-        const y0 = lo - pad, y1 = hi + pad, t0 = shown[0].t, t1 = shown[shown.length - 1].t;
-        X = t => (t - t0) / (t1 - t0 || 1) * (W - R);
-        Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - B - T);
-        const up = shown[shown.length - 1].v >= shown[0].v;
-        let grid = '';
-        for (let i = 0; i <= 3; i++) {
-            const v = y0 + (y1 - y0) * i / 3;
-            grid += `<line class="grid" x1="0" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"></line><text x="${W - R + 8}" y="${Y(v) + 4}">${short(v)}</text>`;
+    // Time-weighted return: a buy or a sale moves the value but is neither
+    // gain nor loss, so the change in holdings at the day's prices is taken out.
+    let idx = 1;
+    series.forEach((p, i) => {
+        const a = series[i - 1];
+        let flow = 0;
+        if (a && p.d !== a.d) {
+            const ua = qtyAt(a.d), ub = qtyAt(p.d);
+            if (ua !== ub) new Set([...Object.keys(ua.qty || {}), ...Object.keys(ub.qty || {})]).forEach(id => {
+                const dq = ((ub.qty || {})[id] || 0) - ((ua.qty || {})[id] || 0);
+                if (dq) flow += dq * (ub.prices[id] ?? lastPrice[id] ?? 0);
+            });
         }
-        grid += `<text x="0" y="${H - 4}">${fmtDate(dayOf(t0))}</text><text x="${W - R}" y="${H - 4}" text-anchor="end">${fmtDate(dayOf(t1))}</text>`;
-        const line = shown.map(p => X(p.t).toFixed(1) + ',' + Y(p.v).toFixed(1)).join(' ');
-        svg.innerHTML = grid +
-            `<polygon fill="var(--area)" points="${X(t0)},${H - B} ${line} ${X(t1)},${H - B}"></polygon>` +
-            `<polyline fill="none" stroke="${up ? 'var(--up)' : 'var(--down)'}" stroke-width="2" stroke-linejoin="round" points="${line}"></polyline>` +
-            `<circle id="dot" r="4" fill="var(--ink)" visibility="hidden"></circle>`;
-    }
-    svg.addEventListener('pointermove', e => {
-        if (shown.length < 2) return;
-        const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * (svg.viewBox.baseVal.width || r.width);
-        let p = shown[0];
-        shown.forEach(q => { if (Math.abs(X(q.t) - x) < Math.abs(X(p.t) - x)) p = q; });
-        const dot = document.getElementById('dot');
-        dot.setAttribute('cx', X(p.t)); dot.setAttribute('cy', Y(p.v)); dot.setAttribute('visibility', 'visible');
-        tip.textContent = `${fmtTime(p.t)} · ${whole(p.v)}`;
-        tip.style.left = Math.min(Math.max(X(p.t) / (svg.viewBox.baseVal.width || r.width) * r.width, 80), r.width - 80) + 'px';
-        tip.style.display = 'block';
+        if (a && a.v > 0) idx *= (p.v - flow) / a.v;
+        p.idx = idx;
     });
-    svg.addEventListener('pointerleave', () => { tip.style.display = 'none'; const d = document.getElementById('dot'); if (d) d.setAttribute('visibility', 'hidden'); });
-    ranges.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { range = b.dataset.r; drawChart(); } });
-    drawChart();
-    addEventListener('resize', drawChart);
 
-    // Inventory table, sortable by clicking a heading.
-    const COLS = [['', null], ['Item', 'name'], ['Qty', 'qty'], ['Price', 'price'], ['Value', 'value'],
-                  ['Share', 'value'], ['Return', 'ret'], ['24h', 'c24']];
-    let sortKey = 'value';
-    function drawTable() {
-        const sorted = [...rows].sort((a, b) => sortKey === 'name' ? a.name.localeCompare(b.name) : (b[sortKey] ?? -Infinity) - (a[sortKey] ?? -Infinity));
-        const top = Math.max(1, ...rows.map(r => r.value));
-        document.getElementById('items').innerHTML =
-            `<thead><tr>${COLS.map(([t, k], i) => `<th${k ? ` data-k="${k}"` : ''}${k === sortKey && i !== 5 ? ' aria-sort="descending"' : ''}>${t}</th>`).join('')}</tr></thead><tbody>` +
-            sorted.map(r => `<tr>
-                <td class="icon"><img src="icons/${r.id}.png" alt="" loading="lazy"></td>
-                <td><a href="${marketLink(r.id)}">${esc(r.name)}</a> <span class="slot">${esc(r.slot || '')}</span></td>
-                <td>${r.qty}</td>
-                <td>${r.price ? short(r.price) : '–'}</td>
-                <td>${r.price ? short(r.value) : '–'}</td>
-                <td>${total ? (r.value / total * 100).toFixed(1) + '%' : '–'}<span class="share"><i style="width:${(r.value / top * 100).toFixed(0)}%"></i></span></td>
-                <td class="${r.ret === null ? '' : cls(r.ret)}">${r.ret === null ? '–' : pct(r.ret)}</td>
-                <td class="${r.c24 === null ? '' : cls(r.c24)}">${r.c24 === null ? '–' : pct(r.c24)}</td>
-            </tr>`).join('') + '</tbody>';
+    const RANGES = [['24H', 1], ['7D', 7], ['1M', 30], ['YTD', null], ['MAX', Infinity]];
+    let range = '1M', mode = 'mesos';
+    const end = series.length ? series[series.length - 1].t : Date.now();
+    const slice = name => {
+        const n = RANGES.find(r => r[0] === name)[1];
+        const from = n === null ? Date.UTC(new Date(end).getUTCFullYear(), 0, 1) : end - n * 864e5;
+        let i0 = 0;
+        series.forEach((p, i) => { if (p.t <= from) i0 = i; });
+        return series.slice(i0);
+    };
+    const changeOf = s => s.length < 2 ? null : mode === 'pct' ? (s[s.length - 1].idx / s[0].idx - 1) * 100
+        : mode === 'usd' ? toUsd(s[s.length - 1].v - s[0].v) : s[s.length - 1].v - s[0].v;
+    const fmtChange = v => v === null ? '–' : mode === 'pct' ? pct(v) : mode === 'usd' ? usdSigned(v) : signed(v);
+    function drawChart() {
+        document.getElementById('ranges').innerHTML = RANGES.map(([n]) => {
+            const c = changeOf(slice(n));
+            return `<button type="button" data-r="${n}" aria-pressed="${n === range}"><b>${n}</b><span class="${c === null ? 'muted' : cls(c)}">${fmtChange(c)}</span></button>`;
+        }).join('');
+        const s = slice(range), c = changeOf(s);
+        document.getElementById('chart-label').textContent = (mode === 'pct' ? 'Return' : 'Market value') +
+            (s.length ? `, since ${fmtDate(s[0].d)}` : '');
+        const el = document.getElementById('chart-change');
+        el.innerHTML = c === null ? '&nbsp;' : `<span class="${cls(c)}">${fmtChange(c)}</span>`;
+        const base = s.length ? s[0].idx : 1;
+        drawLine(document.getElementById('chart'), document.getElementById('tip'),
+            s.map(p => ({ t: p.t, v: mode === 'pct' ? (p.idx / base - 1) * 100 : mode === 'usd' ? toUsd(p.v) : p.v })),
+            { H: 220, fmt: v => mode === 'pct' ? v.toFixed(1) + '%' : mode === 'usd' ? usd(v) : short(v),
+              label: v => mode === 'pct' ? pct(v) : mode === 'usd' ? usd(v) : whole(v) });
     }
-    document.getElementById('items').addEventListener('click', e => { const th = e.target.closest('th[data-k]'); if (th) { sortKey = th.dataset.k; drawTable(); } });
-    drawTable();
+    document.getElementById('ranges').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { range = b.dataset.r; drawChart(); } });
+    document.getElementById('mode').addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        mode = b.dataset.m;
+        document.querySelectorAll('#mode button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        drawChart();
+    });
+    drawChart();
+
+    // The inventory as cards, sorted, and the share of the top five.
+    const top5 = [...rows].sort((a, b) => b.value - a.value).slice(0, 5).reduce((s, r) => s + r.value, 0);
+    if (total) document.getElementById('concentration').innerHTML = `The five most valuable kinds are <b>${(top5 / total * 100).toFixed(1)}%</b> of the total.`;
+    let sortKey = 'value', open = null;
+    const topValue = Math.max(1, ...rows.map(r => r.value));
+    function card(r) {
+        const pc = r.ret ?? null;
+        const sinceTxt = r.since && r.price ? `price <span class="${cls(r.price / r.since.v - 1)}">${pct((r.price / r.since.v - 1) * 100)}</span> since ${fmtDate(r.since.d)}` : '&nbsp;';
+        return `<article class="panel item${open === r.id ? ' open' : ''}" data-id="${r.id}" tabindex="0" aria-expanded="${open === r.id}">
+            <div>
+                <div class="row1">
+                    <div class="ic"><img src="icons/${r.id}.png" alt="" loading="lazy"></div>
+                    <div><div class="nm"><a href="${marketLink(r.id)}">${esc(r.name)}</a></div><div class="slot">${esc(r.slot || '')}</div></div>
+                </div>
+                <div class="row2"><span class="val">${r.price ? short(r.value) : '–'}</span>
+                    ${pc === null ? '' : `<span class="ret ${cls(pc)}">${pct(pc)}</span>`}</div>
+                <div class="share"><i style="width:${(r.value / topValue * 100).toFixed(0)}%"></i></div>
+                <div class="meta"><b>${r.qty}</b> × ${r.price ? short(r.price) : '–'}${r.cost ? ` · cost <b>${short(r.cost)}</b>` : ''}${total ? ` · <b>${(r.value / total * 100).toFixed(1)}%</b> of total` : ''}</div>
+                <div class="meta">${sinceTxt}</div>
+            </div>
+            <div class="more"></div>
+            <button type="button" class="close" aria-label="Close">×</button>
+        </article>`;
+    }
+    function details(r, el) {
+        const box = el.querySelector('.more');
+        const facts = [];
+        if (r.price) facts.push(['Price', whole(r.price), liveItems[r.id] ? 'median of what sold' : 'last daily price']);
+        if (r.cost) facts.push(['Paid', whole(r.cost), 'each, on average']);
+        if (r.price && r.cost) facts.push(['Unrealised', `<span class="${cls(r.price - r.cost)}">${signed((r.price - r.cost) * r.qty)}</span>`, `on ${r.qty} held`]);
+        if (r.series.length > 1) {
+            const v = r.series.map(p => p.v);
+            facts.push([`Since ${fmtDate(r.series[0].d)}`, `${short(Math.min(...v))} to ${short(Math.max(...v))}`, 'lowest to highest']);
+        }
+        if (liveItems[r.id]?.per_day != null) facts.push(['Sold a day', liveItems[r.id].per_day, 'on the market']);
+        const hist = events.filter(e => e.id === r.id).map(e =>
+            `${e.delta > 0 ? (e.buy_price ? 'Bought' : 'Added') : e.given ? 'Gave away' : e.sold_price ? 'Sold' : 'Removed'} <b>${Math.abs(e.delta)}</b> on ${fmtDate(e.date)}` +
+            (e.sold_price ? ` for <b>${whole(e.sold_price)}</b> each` : e.buy_price ? ` for <b>${whole(e.buy_price)}</b> each` : ''));
+        box.innerHTML = `<div class="chart"><svg role="img" aria-label="${esc(r.name)} price over time"></svg><div class="tip"></div></div>
+            <dl class="facts">${facts.map(([t, v, s]) => `<div><dt class="label">${t}</dt><dd>${v}<small>${s}</small></dd></div>`).join('')}</dl>
+            ${hist.length ? `<p class="hist">${hist.join('<br>')}</p>` : ''}
+            <p class="hist">Prices from <a href="${marketLink(r.id)}">maplestory.market</a></p>`;
+        drawLine(box.querySelector('svg'), box.querySelector('.tip'), r.series.map(p => ({ t: p.t, v: p.v })),
+            { H: 140, fmt: short, label: whole });
+    }
+    function drawItems() {
+        const sorted = [...rows].sort((a, b) => (b[sortKey] ?? -Infinity) - (a[sortKey] ?? -Infinity));
+        const box = document.getElementById('items');
+        box.innerHTML = sorted.map(card).join('');
+        const el = open && box.querySelector(`.item[data-id="${open}"]`);
+        if (el) details(rows.find(r => r.id === open), el);
+    }
+    document.getElementById('items').addEventListener('click', e => {
+        if (e.target.closest('a')) return;
+        const el = e.target.closest('.item'); if (!el) return;
+        if (e.target.closest('.close')) { open = null; drawItems(); return; }
+        if (open === el.dataset.id) return;
+        open = el.dataset.id; drawItems();
+        document.querySelector(`.item[data-id="${open}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+    document.getElementById('items').addEventListener('keydown', e => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('item')) { e.preventDefault(); e.target.click(); }
+        if (e.key === 'Escape' && open) { open = null; drawItems(); }
+    });
+    document.getElementById('sort').addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        sortKey = b.dataset.s;
+        document.querySelectorAll('#sort button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        drawItems();
+    });
+    drawItems();
+    addEventListener('resize', () => { drawChart(); if (open) drawItems(); });
 
     // Activity, newest first, grouped by month, and what the shops have sold.
     const label = e => e.delta > 0 ? (e.buy_price ? ['Bought', 'buy'] : ['Added', 'out']) : e.given ? ['Gave away', 'out'] : e.sold_price ? ['Sold', 'sell'] : ['Removed', 'out'];
@@ -320,9 +499,9 @@ async function load() {
         const [t, c] = label(e);
         html += `<li class="e"><span class="when">${fmtDate(e.date)}</span><span class="tag ${c}">${t}</span>` +
             `<span>${Math.abs(e.delta)} × <a href="${marketLink(e.id)}">${esc(e.name)}</a></span>` +
-            `<span class="note">${e.sold_price ? whole(e.sold_price) + ' each' : e.buy_price ? whole(e.buy_price) + ' each' : ''}</span></li>`;
+            `<span class="muted">${e.sold_price ? whole(e.sold_price) + ' each' : e.buy_price ? whole(e.buy_price) + ' each' : ''}</span></li>`;
     });
-    document.getElementById('activity').innerHTML = html || '<li class="note">Nothing yet.</li>';
+    document.getElementById('activity').innerHTML = html || '<li class="muted">Nothing yet.</li>';
     const openings = shops ? Object.values(shops.openings || {}) : [];
     if (openings.length) {
         const el = document.getElementById('shops');
