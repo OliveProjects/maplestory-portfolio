@@ -1,19 +1,20 @@
-"""Hämtar timhistoriken för varje föremål som någon gång legat i Deco-fliken.
+"""Fetches the hourly price history of every item that has ever been in the Deco tab.
 
-  python fetch_history.py [--web <utcheckning>] [--sen-publicera]
+  python fetch_history.py [--web <site checkout>] [--then-publish]
 
-  python fetch_history.py --rotera --web <utcheckning>   (varje timme, run_hourly.sh)
+  python fetch_history.py --rotate --web <site checkout>   (every hour, run_hourly.sh)
 
---sen-publicera kör market_prices.py --bakat när allt är hämtat, som bygger
-om prices.json och pushar. Första gången: se LASMIG.md.
+--then-publish runs market_prices.py --rebuild when everything is fetched,
+which rebuilds prices.json and pushes it. The first time: see the README.
 
-En fil per föremål i historik/<marknadens id>.json. Det som redan är hämtat
-hoppas över, så skriptet kan avbrytas och startas om. Nyckeln ligger i
-api_key.txt bredvid, aldrig i webbrepot (API-villkoren: aldrig i sidans kod).
+One file per item in history/<market id>.json. What is already fetched is
+skipped, so the script can be stopped and started again. The key is in
+api_key.txt next to it, never in the site repo (the API terms: never in the
+page's code).
 
-Nyckeln får 6 anrop i timmen. Skriptet läser x-ratelimit-remaining och
-x-ratelimit-reset i varje svar och väntar till nästa timme när det är slut.
-Historiken går en vecka bakåt.
+The key gets 6 calls an hour. The script reads x-ratelimit-remaining and
+x-ratelimit-reset in every answer and waits for the next hour when they are
+used up. The history goes a week back.
 """
 import json
 import os
@@ -22,145 +23,144 @@ import time
 import urllib.error
 import urllib.request
 
-import settings as inst
+import settings as cfg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-UT = os.path.join(HERE, "history")
-PRICES = os.path.join(inst.data(), "prices.json")
-# Vår klients id -> marknadens, där de skiljer sig.
-TILL_MARKNAD = {"1112100": "1112222"}  # White Label Ring
+HISTORY_DIR = os.path.join(HERE, "history")
+PRICES = os.path.join(cfg.data_dir(), "prices.json")
+# Our client's id -> the market's, where they differ.
+TO_MARKET = {"1112100": "1112222"}  # White Label Ring
 
 
-def nyckel():
+def api_key():
     return open(os.path.join(HERE, "api_key.txt"), encoding="utf-8").read().strip()
 
 
-def alla_id(prices=PRICES, bara_nu=False):
-    """Marknadens id för allt som någon gång ägts, eller med bara_nu bara
-    det som ägs nu (sista punktens antal)."""
-    upp = json.load(open(prices, encoding="utf-8"))["updates"]
+def all_ids(prices=PRICES, only_now=False):
+    """The market id of everything ever owned, or with only_now only what is
+    owned now (the last entry's counts)."""
+    updates = json.load(open(prices, encoding="utf-8"))["updates"]
     ids = []
-    for u in upp[-1:] if bara_nu else upp:
-        for i in (list(u.get("qty", {})) if bara_nu else list(u["prices"]) + list(u.get("qty", {}))):
-            m = TILL_MARKNAD.get(i, i)
+    for u in updates[-1:] if only_now else updates:
+        for i in (list(u.get("qty", {})) if only_now else list(u["prices"]) + list(u.get("qty", {}))):
+            m = TO_MARKET.get(i, i)
             if m not in ids:
                 ids.append(m)
     return ids
 
 
-# Anrop per timme för rotationen; den sjätte lämnas åt synken och liknande.
-PER_TIMME = 5
+# Calls per hour for the rotation; the sixth is left for the sync and the like.
+PER_HOUR = 5
 
 
-def rotera(prices):
-    """Serverns timjobb: hämtar historiken för de PER_TIMME föremål som hämtades
-    längst sedan, dygnet runt. Ett varv över 43 föremål tar ungefär nio
-    timmar, så inget föremåls pris är äldre än så. Spelet går dygnet runt,
-    och det gör rotationen också. Karaktärernas butiker hämtas en gång per
-    dygn; en karaktär som svarat
-    404 (aldrig setts med butik) bara en gång i veckan."""
-    def alder(fil):
-        return os.path.getmtime(fil) if os.path.exists(fil) else 0
-    # Först när priserna bygger på marknadens historik (efter --bakat);
-    # innan dess delar rotationen nyckelns anrop med datorns hämtning.
+def rotate(prices):
+    """The hourly job: fetches the history of the PER_HOUR items fetched
+    longest ago, round the clock. A round over 43 items takes about nine
+    hours, so no item's price is older than that. The game runs round the
+    clock, and so does the rotation. The characters' shops are fetched once
+    a day; a character that answered 404 (never seen with a shop) only once
+    a week."""
+    def age(path):
+        return os.path.getmtime(path) if os.path.exists(path) else 0
+    # Only once the prices rest on the market's history (after --rebuild);
+    # before that the rotation would share the key's calls with the first fetch.
     if json.load(open(prices, encoding="utf-8")).get("source") != "maplestory.market":
         return
-    nu = time.time()
-    ko = [("items/%s/history" % i, os.path.join(UT, i + ".json")) for i in alla_id(prices, bara_nu=True)]
+    now = time.time()
+    queue = [("items/%s/history" % i, os.path.join(HISTORY_DIR, i + ".json")) for i in all_ids(prices, only_now=True)]
     for s, f in EXTRA:
-        utan_butik = os.path.exists(f) and '"error": 404' in open(f, encoding="utf-8").read(200)
-        if nu - alder(f) > (7 * 86400 if utan_butik else 20 * 3600):
-            ko.append((s, f))
-    ko.sort(key=lambda sf: alder(sf[1]))
-    for sokvag, fil in ko[:PER_TIMME]:
-        data, h = hamta(sokvag)
+        no_shop = os.path.exists(f) and '"error": 404' in open(f, encoding="utf-8").read(200)
+        if now - age(f) > (7 * 86400 if no_shop else 20 * 3600):
+            queue.append((s, f))
+    queue.sort(key=lambda sf: age(sf[1]))
+    for api_path, path in queue[:PER_HOUR]:
+        data, h = fetch(api_path)
         if data is None:
-            break  # 429: timmens anrop är slut
-        spara(fil, data)
-        print("%s  %s" % (time.strftime("%H:%M"), sokvag), flush=True)
+            break  # 429: this hour's calls are used up
+        save(path, data)
+        print("%s  %s" % (time.strftime("%H:%M"), api_path), flush=True)
         if int(h.get("x-ratelimit-remaining", 1)) <= 0:
             break
 
 
-# Andra anrop som ska med i samma kö: (sökväg i API:t, fil här).
-KARAKTARER = inst.KARAKTARER
-# Senaste svaret per karaktär; tidigare dagars svar ligger kvar i shops.json.
-EXTRA = [("owners/" + k, os.path.join(HERE, "owners", "%s.json" % k)) for k in KARAKTARER]
+# Other calls that go in the same queue: (path in the API, file here).
+CHARACTERS = cfg.CHARACTERS
+# The latest answer per character; earlier days' answers stay in shops.json.
+EXTRA = [("owners/" + k, os.path.join(HERE, "owners", "%s.json" % k)) for k in CHARACTERS]
 
 
-def spara(fil, data):
-    """Skriver ett svar. Historiken slås ihop med det som redan finns, timme
-    för timme (det nya svaret vinner), eftersom API:t bara ger en vecka
-    bakåt: att skriva över hade kastat allt äldre. ~2 MB i veckan för 43
-    föremål."""
-    os.makedirs(os.path.dirname(fil), exist_ok=True)
-    if os.path.dirname(fil) == UT and os.path.exists(fil):
+def save(path, data):
+    """Writes an answer. The history is merged with what is already there,
+    hour by hour (the new answer wins), since the API only gives a week
+    back: overwriting would throw away everything older. About 2 MB a week
+    for 43 items."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.dirname(path) == HISTORY_DIR and os.path.exists(path):
         try:
-            rader = {r["hour"]: r for r in json.load(open(fil, encoding="utf-8"))}
-            rader.update({r["hour"]: r for r in json.loads(data)})
-            data = json.dumps([rader[k] for k in sorted(rader)], separators=(",", ":")).encode()
+            rows = {r["hour"]: r for r in json.load(open(path, encoding="utf-8"))}
+            rows.update({r["hour"]: r for r in json.loads(data)})
+            data = json.dumps([rows[k] for k in sorted(rows)], separators=(",", ":")).encode()
         except (ValueError, KeyError, TypeError):
-            pass  # oväntat format: spara svaret som det är, hellre än att stanna
-    with open(fil, "wb") as f:
+            pass  # an unexpected format: save the answer as it is, rather than stop
+    with open(path, "wb") as f:
         f.write(data)
 
 
-def hamta(sokvag):
+def fetch(api_path):
     req = urllib.request.Request(
-        "https://maplestory.market/api/" + sokvag,
-        headers={"Authorization": "Bearer " + nyckel(), "User-Agent": inst.USER_AGENT})
+        "https://maplestory.market/api/" + api_path,
+        headers={"Authorization": "Bearer " + api_key(), "User-Agent": cfg.USER_AGENT})
     try:
-        with urllib.request.urlopen(req, timeout=60) as svar:
-            return svar.read(), svar.headers
+        with urllib.request.urlopen(req, timeout=60) as answer:
+            return answer.read(), answer.headers
     except urllib.error.HTTPError as e:
         if e.code == 429:
             return None, e.headers
-        if e.code == 404 and sokvag.startswith("items/"):
-            return b"[]", e.headers  # marknaden har aldrig sett föremålet
-        if sokvag.startswith("owners/"):
-            # En karaktär utan butik ska inte stoppa prishämtningen.
+        if e.code == 404 and api_path.startswith("items/"):
+            return b"[]", e.headers  # the market has never seen the item
+        if api_path.startswith("owners/"):
+            # A character without a shop must not stop the price fetch.
             return json.dumps({"error": e.code, "body": e.read()[:500].decode("utf-8", "replace")}).encode(), e.headers
-        sluta(sokvag, e)
+        stop(api_path, e)
 
 
-def sluta(iid, e):
-    print("FEL %s: %s %s" % (iid, e.code, e.read()[:200]), flush=True)
+def stop(what, e):
+    print("ERROR %s: %s %s" % (what, e.code, e.read()[:200]), flush=True)
     sys.exit(1)
 
 
-def vanta_till(reset):
+def wait_until(reset):
     s = max(0, int(reset) - time.time()) + 30
-    print("  väntar %d min" % (s // 60), flush=True)
+    print("  waiting %d min" % (s // 60), flush=True)
     time.sleep(s)
 
 
 def main(args):
-    os.makedirs(UT, exist_ok=True)
-    if "--rotera" in args:
-        web = args[args.index("--web") + 1] if "--web" in args else inst.WEB
-        rotera(os.path.join(inst.data(web), "prices.json"))
+    os.makedirs(HISTORY_DIR, exist_ok=True)
+    web = args[args.index("--web") + 1] if "--web" in args else cfg.WEB
+    if "--rotate" in args or "--rotera" in args:
+        rotate(os.path.join(cfg.data_dir(web), "prices.json"))
         return
-    web = args[args.index("--web") + 1] if "--web" in args else inst.WEB
-    prices = os.path.join(inst.data(web), "prices.json")
-    kvar = [(s, f) for s, f in EXTRA if not os.path.exists(f)] + [
-        ("items/%s/history" % i, os.path.join(UT, i + ".json")) for i in alla_id(prices)
-        if not os.path.exists(os.path.join(UT, i + ".json"))]
-    print("%d anrop kvar" % len(kvar), flush=True)
-    while kvar:
-        sokvag, fil = kvar[0]
-        data, h = hamta(sokvag)
-        if data is None:  # 429: vänta och försök igen
-            vanta_till(h.get("x-ratelimit-reset") or time.time() + int(h.get("Retry-After", 600)))
+    prices = os.path.join(cfg.data_dir(web), "prices.json")
+    left = [(s, f) for s, f in EXTRA if not os.path.exists(f)] + [
+        ("items/%s/history" % i, os.path.join(HISTORY_DIR, i + ".json")) for i in all_ids(prices)
+        if not os.path.exists(os.path.join(HISTORY_DIR, i + ".json"))]
+    print("%d calls left" % len(left), flush=True)
+    while left:
+        api_path, path = left[0]
+        data, h = fetch(api_path)
+        if data is None:  # 429: wait and try again
+            wait_until(h.get("x-ratelimit-reset") or time.time() + int(h.get("Retry-After", 600)))
             continue
-        spara(fil, data)
-        kvar.pop(0)
-        print("%s  %s  %d kvar" % (time.strftime("%H:%M"), sokvag, len(kvar)), flush=True)
-        if kvar and int(h.get("x-ratelimit-remaining", 1)) <= 0:
-            vanta_till(h["x-ratelimit-reset"])
-    print("klar", flush=True)
-    if "--sen-publicera" in args:
+        save(path, data)
+        left.pop(0)
+        print("%s  %s  %d left" % (time.strftime("%H:%M"), api_path, len(left)), flush=True)
+        if left and int(h.get("x-ratelimit-remaining", 1)) <= 0:
+            wait_until(h["x-ratelimit-reset"])
+    print("done", flush=True)
+    if "--then-publish" in args or "--sen-publicera" in args:
         import market_prices
-        market_prices.main(["--bakat", "--web", web])
+        market_prices.main(["--rebuild", "--web", web])
 
 
 if __name__ == "__main__":

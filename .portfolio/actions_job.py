@@ -4,7 +4,7 @@ website_creator.py adds to your site repo) instead of on your own server.
 It lives in .portfolio/ in the site repo, next to the scripts it calls, and
 does what run_hourly.sh does on a server, with one difference: Actions cannot wait
 for hours, so the first fetch of every item's history is spread over the
-hourly runs, five calls per hour, and the first price build (--bakat) runs
+hourly runs, five calls per hour, and the first price build (--rebuild) runs
 by itself once everything is fetched.
 
 The API key comes from the repo secret MAPLESTORY_MARKET_KEY, written to
@@ -24,64 +24,64 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 os.chdir(HERE)
 
-import fetch_history as hh  # noqa: E402
-import settings as inst  # noqa: E402
+import fetch_history as fh  # noqa: E402
+import settings as cfg  # noqa: E402
 
 # The site's root: by default the folder above .portfolio/ (the repo on
 # Actions). On your own server, set PORTFOLIO_WEB to the folder the web
 # server shows, and keep the scripts and api_key.txt outside it.
 WEB = os.path.abspath(os.environ.get("PORTFOLIO_WEB") or os.path.join(HERE, ".."))
-DATA = inst.data(WEB)
+DATA = cfg.data_dir(WEB)
 PRICES = os.path.join(DATA, "prices.json")
 LIVE = os.path.join(DATA, "live.json")
 
 
-def kor(*args):
+def run(*args):
     print("> python " + " ".join(args), flush=True)
     return subprocess.run([sys.executable] + list(args)).returncode
 
 
-def forsta_hamtningen():
+def first_fetch():
     """Fetches up to five missing histories. True when nothing is missing."""
-    os.makedirs(hh.UT, exist_ok=True)
+    os.makedirs(fh.HISTORY_DIR, exist_ok=True)
 
-    def saknas():
-        return [(s, f) for s, f in hh.EXTRA if not os.path.exists(f)] + [
-            ("items/%s/history" % i, os.path.join(hh.UT, i + ".json")) for i in hh.alla_id(PRICES)
-            if not os.path.exists(os.path.join(hh.UT, i + ".json"))]
+    def missing():
+        return [(s, f) for s, f in fh.EXTRA if not os.path.exists(f)] + [
+            ("items/%s/history" % i, os.path.join(fh.HISTORY_DIR, i + ".json")) for i in fh.all_ids(PRICES)
+            if not os.path.exists(os.path.join(fh.HISTORY_DIR, i + ".json"))]
 
-    kvar = saknas()
-    print("First fetch: %d calls left (5 per hour)" % len(kvar), flush=True)
-    for sokvag, fil in kvar[:hh.PER_TIMME]:
-        data, h = hh.hamta(sokvag)
+    left = missing()
+    print("First fetch: %d calls left (5 per hour)" % len(left), flush=True)
+    for api_path, path in left[:fh.PER_HOUR]:
+        data, h = fh.fetch(api_path)
         if data is None:
             print("429: this hour's calls are used up", flush=True)
             break
-        hh.spara(fil, data)
-        print("  " + sokvag, flush=True)
+        fh.save(path, data)
+        print("  " + api_path, flush=True)
         if int(h.get("x-ratelimit-remaining", 1)) <= 0:
             break
-    return not saknas()
+    return not missing()
 
 
 def main():
     if not os.path.exists(PRICES):
         print("No prices.json yet: run the first sync on your computer (Sync.bat).")
         return
-    kalla = json.load(open(PRICES, encoding="utf-8")).get("source")
-    if kalla != "maplestory.market":
-        if not forsta_hamtningen():
+    source = json.load(open(PRICES, encoding="utf-8")).get("source")
+    if source != "maplestory.market":
+        if not first_fetch():
             return
         print("Every history is fetched: building the prices for the first time.", flush=True)
-        if kor("market_prices.py", "--bakat", "--web", WEB, "--ingen-push"):
+        if run("market_prices.py", "--rebuild", "--web", WEB, "--no-push"):
             sys.exit("the first price build failed")
     else:
-        kor("fetch_history.py", "--rotera", "--web", WEB)
-    if kor("market_prices.py", "--live", "--web", WEB, "--live-ut", LIVE):
+        run("fetch_history.py", "--rotate", "--web", WEB)
+    if run("market_prices.py", "--live", "--web", WEB, "--live-out", LIVE):
         print("ERROR: the live prices were not updated")
-    kor("share_image.py", "--sajt", WEB)
-    # Yesterday's last live value becomes today's point, on the first run after midnight.
-    if kor("market_prices.py", "--web", WEB, "--live-ut", LIVE, "--ingen-push"):
+    run("share_image.py", "--site", WEB)
+    # Yesterday's last live value becomes its day's point, on the first run after midnight.
+    if run("market_prices.py", "--web", WEB, "--live-out", LIVE, "--no-push"):
         print("ERROR: yesterday's point was not saved")
 
 

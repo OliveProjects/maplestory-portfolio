@@ -1,19 +1,20 @@
 {
- "karaktarer": [
-  "Hakushu",
-  "Mizunara",
-  "Tsunuki"
- ],
- "butik": "Hakushu",
  "ref": "8pxbpzn5",
- "sajtnamn": "MapleStory portfolio (test)",
- "sajt_url": "https://oliveprojects.github.io/maplestory-portfolio/maplestory/",
- "tidszon": "Europe/Stockholm",
- "webbrepo": "..",
- "undermapp": "maplestory",
  "git_remotes": [
   "origin"
  ],
  "wz_data": "C:\\Nexon\\Library\\maplestorycw\\appdata\\Data",
- "user_agent": "https://oliveprojects.github.io/maplestory-portfolio/maplestory/"
+ "user_agent": "https://oliveprojects.github.io/maplestory-portfolio/maplestory/",
+ "screenshot_folder": "C:\\Nexon\\Library\\maplestorycw\\appdata",
+ "characters": [
+  "Hakushu",
+  "Mizunara",
+  "Tsunuki"
+ ],
+ "shop_character": "Hakushu",
+ "site_name": "MapleStory portfolio (test)",
+ "site_url": "https://oliveprojects.github.io/maplestory-portfolio/maplestory/",
+ "time_zone": "Europe/Stockholm",
+ "site_repo": "..",
+ "subfolder": "maplestory"
 }

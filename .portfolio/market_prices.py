@@ -1,33 +1,36 @@
-"""Priser ur maplestory.market till sidan.
+"""Prices from maplestory.market for the page.
 
-  python market_prices.py --bakat [--ut <mapp>] [--ingen-push]
-      Bygger om hela prices.json ur historik/ (fetch_history.py), en punkt
-      per dag från en vecka före första inventeringen till i dag (så långt
-      bakåt som API:ts historik går). Händelsernas marknadspris i
-      activity.json räknas om på samma sätt.
+  python market_prices.py --rebuild [--out <folder>] [--no-push]
+      Rebuilds the whole of prices.json from history/ (fetch_history.py), one
+      point per day from a week before the first inventory until today (as
+      far back as the API's history goes). The events' market price in
+      activity.json is worked out the same way.
 
-  python market_prices.py --live --live-ut <fil> [--web <utcheckning>]
-      Livepriserna ur den historik som finns, varje timme (run_hourly.sh på servern).
+  python market_prices.py --live --live-out <file> [--web <site checkout>]
+      The live prices from the history there is, every hour (run_hourly.sh
+      on a server, actions_job.py on GitHub).
 
-  python market_prices.py [--web <utcheckning>] [--remotes origin] [--ingen-push]
-      Första körningen efter midnatt sparar gårdagens sista livevärde som
-      dagens punkt i prices.json. Ingen stängning: spelet går dygnet runt.
+  python market_prices.py [--web <site checkout>] [--remotes origin] [--no-push]
+      The first run after midnight saves yesterday's last live value as
+      that day's point in prices.json. No closing time: the game runs round
+      the clock.
 
-Priset är den styckviktade medianen av timmarnas säljmedianer, i det
-kortaste fönster (24h, 72h, 7d) som har tillräckligt med försäljningar; se
-markera() och FONSTER_REGLER. Bakåt räknas samma mått ur timhistoriken, med
-dygnets slut (kl. 24 svensk tid) som mätpunkt.
+The price is the unit-weighted median of the hours' sold medians, in the
+shortest window (24h, 72h, 7d) with enough sales; see price_at() and
+WINDOW_RULES. Back in time the same measure is taken from the hourly
+history, with the end of the day (midnight in the page's time zone) as the
+point of measurement.
 
-Dagarna före första inventeringen räknas med den inventeringens antal.
-Sådana punkter får "assumed_qty": true, och sidan ritar dem prickade.
+The days before the first inventory are valued with that inventory's
+counts. Such points get "assumed_qty": true, and the page draws them dotted.
 
-Git: hämtar (pull --rebase) innan något skrivs, eftersom både servern och
-datorn med spelet committar till samma repo.
+Git: pulls (pull --rebase) before anything is written, since both the
+server and the computer with the game commit to the same repo.
 
-API-villkoren (maplestory.market/docs/api/terms): krediten och länkarna står
-på sidan, nyckeln stannar i api_key.txt, och svaren sparas i stället för att
-hämtas om. Bara procent och totaler publiceras ur historiken, aldrig gamla
-priser per föremål i bulk.
+The API terms (maplestory.market/docs/api/terms): the credit and the links
+are on the page, the key stays in api_key.txt, and the answers are saved
+instead of fetched again. Only percentages and totals are published from
+the history, never old prices per item in bulk.
 """
 import datetime
 import json
@@ -41,24 +44,24 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-import settings as inst  # noqa: E402
-from fetch_history import KARAKTARER, TILL_MARKNAD, nyckel  # noqa: E402
+import settings as cfg  # noqa: E402
+from fetch_history import CHARACTERS, TO_MARKET, api_key  # noqa: E402
 
-HISTORIK = os.path.join(HERE, "history")
-SVERIGE = inst.TIDSZON  # sidans tidszon; dygnet slutar vid midnatt där
-# En dag får inte flytta priserna mer än så här utan att någon tittar. Var
-# 0,25; en dag steg kontot ~29 % på riktigt (en Founder-låda slutade säljas
-# och två föremål dubblades).
-MAX_HOPP = 0.40
-
-
-def mid(iid):
-    return TILL_MARKNAD.get(iid, iid)
+HISTORY_DIR = os.path.join(HERE, "history")
+TZ = cfg.TIME_ZONE  # the page's time zone; the day ends at midnight there
+# A day may not move the prices more than this without someone looking. It
+# was 0.25; one day the account really rose ~29 % (a Founder crate left the
+# Cash Shop and two items doubled).
+MAX_JUMP = 0.40
 
 
-def skriv_json(fil, data):
-    os.makedirs(os.path.dirname(fil), exist_ok=True)
-    with open(fil, "w", encoding="utf-8", newline="\n") as fh:
+def market_id(iid):
+    return TO_MARKET.get(iid, iid)
+
+
+def write_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=1)
         fh.write("\n")
 
@@ -67,467 +70,474 @@ def total(u):
     return sum(u["prices"].get(i, 0) * q for i, q in u["qty"].items())
 
 
-def kontrollera(updates):
-    """Stoppar innan något pushas om totalen hoppar orimligt mellan två
-    dagar. Ett föremål utan pris (som aldrig setts säljas) är bara en
-    varning; sidan visar det som "no recorded price"."""
-    fel = []
+def check(updates):
+    """Stops before anything is pushed if the total jumps unreasonably
+    between two days. An item without a price (never seen selling) is only a
+    warning; the page shows it as "no recorded price"."""
+    errors = []
     for u in updates:
-        saknas = [i for i in u["qty"] if i not in u["prices"]]
-        if saknas:
-            print("varning: %s saknar pris för %s" % (u["date"], ", ".join(saknas)))
+        missing = [i for i in u["qty"] if i not in u["prices"]]
+        if missing:
+            print("warning: %s has no price for %s" % (u["date"], ", ".join(missing)))
     for a, b in zip(updates, updates[1:]):
-        # Prisrörelsen på b:s antal: köp och försäljningar är inget hopp.
-        gem = [i for i in b["qty"] if i in a["prices"] and i in b["prices"]]
-        fore = sum(a["prices"][i] * b["qty"][i] for i in gem)
-        efter = sum(b["prices"][i] * b["qty"][i] for i in gem)
-        if fore and abs(efter / fore - 1) > MAX_HOPP:
-            fel.append("priserna hoppar %s -> %s: %d -> %d på samma antal" % (a["date"], b["date"], fore, efter))
-    if fel:
-        sys.exit("STOPP, inget skrivet:\n  " + "\n  ".join(fel))
+        # The price movement on b's counts: buys and sales are no jump.
+        both = [i for i in b["qty"] if i in a["prices"] and i in b["prices"]]
+        before = sum(a["prices"][i] * b["qty"][i] for i in both)
+        after = sum(b["prices"][i] * b["qty"][i] for i in both)
+        if before and abs(after / before - 1) > MAX_JUMP:
+            errors.append("the prices jump %s -> %s: %d -> %d on the same counts" % (a["date"], b["date"], before, after))
+    if errors:
+        sys.exit("STOPPED, nothing written:\n  " + "\n  ".join(errors))
 
 
-def matpunkt(dag):
-    """Dygnets slut (kl. 24 i sidans tidszon) som unix-sekunder: dagens
-    punkt i historiken är dygnets sista värde. Ingen stängning; spelet och
-    sidan går dygnet runt."""
-    d = dag + datetime.timedelta(days=1)
-    return int(datetime.datetime(d.year, d.month, d.day, tzinfo=SVERIGE).timestamp())
+def day_end(day):
+    """The end of the day (midnight in the page's time zone) in unix seconds:
+    a day's point in the history is the day's last value. No closing time;
+    the game and the page run round the clock."""
+    d = day + datetime.timedelta(days=1)
+    return int(datetime.datetime(d.year, d.month, d.day, tzinfo=TZ).timestamp())
 
 
-# ── Värderingen: hög volym = kortare fönster ──
-# Fönster, kortast först: (namn, timmar, minst sålda st, minst timmar med försäljning).
-# Kravet på spridda timmar hindrar att en enda köpare sätter priset.
-# 24h-kravet sänkt från 20 st/6 timmar till 10/5: hellre ett dagspris som rör
-# sig. En dag då marknaden registrerade en sjättedel av dagen, med tomma
-# timmar, föll nio sorter som brukar sälja 30–190 st om dagen till 72h; med
-# 10/5 klarade 41 av 43 den dagen. Takregeln (25 % per
-# timme) och kravet på fem timmar hindrar fortfarande en enda köpare.
-FONSTER_REGLER = [("24h", 24, 10, 5), ("72h", 72, 8, 4), ("7d", 168, 3, 2)]
-ORDNING = {"24h": 0, "72h": 1, "7d": 2, "stale": 3}
-TAK = 0.25          # ingen enskild timme väger mer än så i medianen
-LIKVID_ANDEL = 0.2  # så stor del av dagens försäljningar en säljare kan ta utan att trycka priset
+# ── The valuation: high volume = a shorter window ──
+# Windows, shortest first: (name, hours, at least units sold, at least hours with sales).
+# The demand for spread-out hours keeps a single buyer from setting the price.
+# The 24h demand was lowered from 20 units / 6 hours to 10/5: better a daily
+# price that moves. On a day when the market recorded a sixth of the day,
+# with empty hours, nine kinds that usually sell 30-190 a day fell to 72h;
+# with 10/5, 41 of 43 made it that day. The cap (25 % per hour) and the
+# demand for five hours still keep a single buyer out.
+WINDOW_RULES = [("24h", 24, 10, 5), ("72h", 72, 8, 4), ("7d", 168, 3, 2)]
+ORDER = {"24h": 0, "72h": 1, "7d": 2, "stale": 3}
+CAP = 0.25          # no single hour weighs more than this in the median
+LIQUID_SHARE = 0.2  # the share of a day's sales one seller can take without pushing the price
 
 
-def viktad_median(par):
-    """par = [(värde, vikt)]; värdet där halva vikten passerats."""
-    par = sorted(par)
-    halv = sum(v for _, v in par) / 2
+def weighted_median(pairs):
+    """pairs = [(value, weight)]; the value where half the weight is passed."""
+    pairs = sorted(pairs)
+    half = sum(w for _, w in pairs) / 2
     acc = 0
-    for varde, vikt in par:
-        acc += vikt
-        if acc >= halv:
-            return varde
+    for value, weight in pairs:
+        acc += weight
+        if acc >= half:
+            return value
     return None
 
 
-def timmar_med_salg(timmar, t, h):
-    return [r for r in timmar if t - h * 3600 <= r["hour"] < t and r.get("sold")]
+def hours_with_sales(hours, t, h):
+    return [r for r in hours if t - h * 3600 <= r["hour"] < t and r.get("sold")]
 
 
-def kvalificerar(timmar, t):
-    """Kortaste fönster som uppfyller sitt krav, annars "stale"."""
-    for namn, h, min_st, min_tim in FONSTER_REGLER:
-        rader = timmar_med_salg(timmar, t, h)
-        if sum(r["sold"]["units"] for r in rader) >= min_st and len(rader) >= min_tim:
-            return namn
+def qualifies(hours, t):
+    """The shortest window that meets its demand, else "stale"."""
+    for name, h, min_units, min_hours in WINDOW_RULES:
+        rows = hours_with_sales(hours, t, h)
+        if sum(r["sold"]["units"] for r in rows) >= min_units and len(rows) >= min_hours:
+            return name
     return "stale"
 
 
-def fonsterpris(timmar, t, w):
-    """Priset vid t i fönstret w ("24h", "72h", "7d"), eller None."""
-    h = dict((n, hh) for n, hh, _, _ in FONSTER_REGLER)[w]
-    # Udda timmar jämförs med fönstrets typiska timme (oviktad median av
-    # timmarnas medianer), inte med veckans: ett föremål som på ett dygn gick
-    # från 220k till 450k hade annars fått de nya affärerna bortfiltrerade.
-    # En skräptimme (103 st à 481 miljoner) väger en timme, inte 103 st.
-    fonster = timmar_med_salg(timmar, t, h)
-    if not fonster:
+def window_price(hours, t, w):
+    """The price at t in the window w ("24h", "72h", "7d"), or None."""
+    h = dict((n, hh) for n, hh, _, _ in WINDOW_RULES)[w]
+    # Odd hours are compared with the window's typical hour (the unweighted
+    # median of the hours' medians), not the week's: an item that went from
+    # 220k to 450k in a day would otherwise have had its new trades filtered
+    # out. A junk hour (103 units at 481 million) weighs one hour, not 103 units.
+    window = hours_with_sales(hours, t, h)
+    if not window:
         return None
-    vm = statistics.median(r["sold"]["median_unit_price"] for r in fonster)
-    rader = [r for r in fonster if 0.5 * vm <= r["sold"]["median_unit_price"] <= 2 * vm]
-    total_st = sum(r["sold"]["units"] for r in rader)
-    par = [(r["sold"]["median_unit_price"], min(r["sold"]["units"], TAK * total_st)) for r in rader]
-    return viktad_median(par)
+    typical = statistics.median(r["sold"]["median_unit_price"] for r in window)
+    rows = [r for r in window if 0.5 * typical <= r["sold"]["median_unit_price"] <= 2 * typical]
+    total_units = sum(r["sold"]["units"] for r in rows)
+    pairs = [(r["sold"]["median_unit_price"], min(r["sold"]["units"], CAP * total_units)) for r in rows]
+    return weighted_median(pairs)
 
 
-def markera(timmar, t, forra=None):
-    """Dagens pris för ett föremål vid tiden t.
+def price_at(hours, t, previous=None):
+    """An item's price for the day at time t.
 
-    Värdet är den styckviktade medianen av timmarnas säljmedianer i det
-    valda fönstret: en udda affär flyttar ett snitt men inte en median.
-    Timmar utanför 0,5–2 × fönstrets typiska timme räknas inte, och ingen timme
-    väger mer än TAK. Fönstret byts till ett kortare först när det kortare
-    har gällt två dagar i rad (forra = gårdagens {"w", "q", "p"}); annars
-    skapar bytet i sig falska dagsrörelser. Har inget sålts på en vecka:
-    det lägsta av gårdagens pris och 85 % av utropspriset, märkt "stale".
+    The value is the unit-weighted median of the hours' sold medians in the
+    chosen window: an odd trade moves an average but not a median. Hours
+    outside 0.5-2 × the window's typical hour don't count, and no hour weighs
+    more than CAP. The window changes to a shorter one only when the shorter
+    one has held two days running (previous = yesterday's {"w", "q", "p"});
+    otherwise the change itself makes false daily movements. If nothing has
+    sold in a week: the lower of yesterday's price and 85 % of the asking
+    price, marked "stale".
 
-    Returnerar {"p": pris, "w": fönster som användes, "q": kortaste som
-    kvalificerade i dag} eller None."""
-    q = kvalificerar(timmar, t)
+    Returns {"p": price, "w": window used, "q": shortest that qualified
+    today} or None."""
+    q = qualifies(hours, t)
     w = q
-    if forra and ORDNING[q] < ORDNING.get(forra.get("w"), 3):
-        # Kortare än i går: bara så kort som både i dag och i går klarar.
-        namn = {v: k for k, v in ORDNING.items()}
-        w = namn[min(max(ORDNING[q], ORDNING.get(forra.get("q"), 3)), ORDNING[forra["w"]])]
+    if previous and ORDER[q] < ORDER.get(previous.get("w"), 3):
+        # Shorter than yesterday: only as short as both today and yesterday manage.
+        name = {v: k for k, v in ORDER.items()}
+        w = name[min(max(ORDER[q], ORDER.get(previous.get("q"), 3)), ORDER[previous["w"]])]
         if w == "stale":
-            w = q  # försäljningar igen efter en tom vecka: ta dem direkt
+            w = q  # sales again after an empty week: take them at once
     if w != "stale":
-        p = fonsterpris(timmar, t, w)
+        p = window_price(hours, t, w)
         if p:
             return {"p": round(p), "w": w, "q": q}
-    # Inget sålt på en vecka: utropspriserna är ett tak, inte ett värde.
-    utrop = sorted(r["seen"]["median_unit_price"] for r in timmar
-                   if t - 24 * 3600 <= r["hour"] < t and r.get("seen"))
-    kandidater = [x for x in ((forra or {}).get("p"), utrop[len(utrop) // 2] * 0.85 if utrop else None) if x]
-    return {"p": round(min(kandidater)), "w": "stale", "q": q} if kandidater else None
+    # Nothing sold in a week: the asking prices are a ceiling, not a value.
+    asking = sorted(r["seen"]["median_unit_price"] for r in hours
+                    if t - 24 * 3600 <= r["hour"] < t and r.get("seen"))
+    candidates = [x for x in ((previous or {}).get("p"), asking[len(asking) // 2] * 0.85 if asking else None) if x]
+    return {"p": round(min(candidates)), "w": "stale", "q": q} if candidates else None
 
 
-def likviditet(timmar, t, antal):
-    """Sålda per dag (veckans snitt) och dagar att sälja innehavet om man
-    tar en femtedel av flödet."""
-    # Skräptimmar bort: en timme med 103 st à 481 miljoner hade annars
-    # dubblat "sold a day". Brett (0,2–5 × veckans
-    # typiska timme), så att en verklig prisrörelse under veckan räknas.
-    vecka = timmar_med_salg(timmar, t, 168)
-    vm = statistics.median(r["sold"]["median_unit_price"] for r in vecka) if vecka else 0
-    st = sum(r["sold"]["units"] for r in vecka if 0.2 * vm <= r["sold"]["median_unit_price"] <= 5 * vm)
-    dagar = min(7, max(1, (t - timmar[0]["hour"]) / 86400)) if timmar else 7
-    per_dag = st / dagar
-    return {"per_day": round(per_dag, 1),
-            "days_to_sell": round(antal / (LIKVID_ANDEL * per_dag), 1) if per_dag else None}
+def liquidity(hours, t, count):
+    """Sold a day (the week's average) and the days to sell the holding if
+    you take a fifth of the flow."""
+    # Junk hours out: an hour with 103 units at 481 million would otherwise
+    # have doubled "sold a day". Wide (0.2-5 × the week's typical hour), so
+    # that a real price movement during the week counts.
+    week = hours_with_sales(hours, t, 168)
+    typical = statistics.median(r["sold"]["median_unit_price"] for r in week) if week else 0
+    units = sum(r["sold"]["units"] for r in week if 0.2 * typical <= r["sold"]["median_unit_price"] <= 5 * typical)
+    days = min(7, max(1, (t - hours[0]["hour"]) / 86400)) if hours else 7
+    per_day = units / days
+    return {"per_day": round(per_day, 1),
+            "days_to_sell": round(count / (LIQUID_SHARE * per_day), 1) if per_day else None}
 
 
-METOD = ("unit-weighted median of hourly sold medians; window 24h/72h/7d by volume "
-         "(10 units in 5 hours / 8 in 4 / 3 in 2), shorter window only after 2 days; "
-         "no sales in 7 days: min(previous, 0.85 x asking median)")
+METHOD = ("unit-weighted median of hourly sold medians; window 24h/72h/7d by volume "
+          "(10 units in 5 hours / 8 in 4 / 3 in 2), shorter window only after 2 days; "
+          "no sales in 7 days: min(previous, 0.85 x asking median)")
 
 
-def dagspunkt(historik, qty, t, forra):
-    """En dags punkt: pris, använt fönster ("basis") och kortaste fönster
-    som kvalificerade ("q", för tvådagarsregeln). forra = gårdagens punkt."""
-    priser, basis, kval = {}, {}, {}
+def day_point(history, qty, t, previous):
+    """A day's point: price, window used ("basis") and the shortest window
+    that qualified ("q", for the two-day rule). previous = yesterday's point."""
+    prices, basis, qual = {}, {}, {}
     for i in qty:
-        g = forra and {"w": forra.get("basis", {}).get(i), "q": forra.get("q", {}).get(i),
-                       "p": forra["prices"].get(i)}
-        # Slutar historiken före t gäller priset där den slutar (som live och
-        # timmarna), inte ett fönster med tomma timmar på slutet.
-        h = historik[i]
-        m = markera(h, min(t, h[-1]["hour"] + 3600) if h else t, g if g and g["w"] else None)
+        g = previous and {"w": previous.get("basis", {}).get(i), "q": previous.get("q", {}).get(i),
+                          "p": previous["prices"].get(i)}
+        # If the history ends before t, the price is the one where it ends (as
+        # live and the hours do), not a window with empty hours at the end.
+        h = history[i]
+        m = price_at(h, min(t, h[-1]["hour"] + 3600) if h else t, g if g and g["w"] else None)
         if m:
-            priser[i], basis[i], kval[i] = m["p"], m["w"], m["q"]
-    return {"prices": priser, "qty": qty, "basis": basis, "q": kval}
+            prices[i], basis[i], qual[i] = m["p"], m["w"], m["q"]
+    return {"prices": prices, "qty": qty, "basis": basis, "q": qual}
 
 
-def skriv_marknad(ut, post, likv, prisrader):
-    """market.json: likviditet och utropspremie per föremål, för korten (en
-    gång per dygn; live.json har likviditeten timme för timme). likv = {id:
-    {"per_day", "days_to_sell"}}. Utropspremie = (p25 av utropspriserna −
-    vårt pris) / vårt pris; negativ betyder att säljarna redan begär under
-    senaste avsluten."""
-    p25 = {str(r["item_id"]): r["seen"]["p25_unit_price"] for r in prisrader if r.get("seen")}
+def write_market(out, point, liq, price_rows):
+    """market.json: liquidity and asking premium per item, for the cards
+    (once a day; live.json has the liquidity hour by hour). liq = {id:
+    {"per_day", "days_to_sell"}}. Asking premium = (p25 of the asking prices
+    − our price) / our price; negative means the sellers already ask below
+    the latest trades."""
+    p25 = {str(r["item_id"]): r["seen"]["p25_unit_price"] for r in price_rows if r.get("seen")}
     items = {}
-    for i, q in post["qty"].items():
-        if i not in post["prices"]:
+    for i, q in point["qty"].items():
+        if i not in point["prices"]:
             continue
-        rad = {k: likv.get(i, {}).get(k) for k in ("per_day", "days_to_sell")}
-        rad["basis"] = post["basis"].get(i)
-        if p25.get(mid(i)):
-            rad["ask_premium"] = round((p25[mid(i)] / post["prices"][i] - 1) * 100, 1)
-        items[i] = rad
-    skriv_json(os.path.join(ut, "market.json"), {"date": post["date"], "items": items})
+        row = {k: liq.get(i, {}).get(k) for k in ("per_day", "days_to_sell")}
+        row["basis"] = point["basis"].get(i)
+        if p25.get(market_id(i)):
+            row["ask_premium"] = round((p25[market_id(i)] / point["prices"][i] - 1) * 100, 1)
+        items[i] = row
+    write_json(os.path.join(out, "market.json"), {"date": point["date"], "items": items})
 
 
-def las_historik(iid):
-    fil = os.path.join(HISTORIK, mid(iid) + ".json")
-    if not os.path.exists(fil):
-        sys.exit("saknar historik för %s (%s), kör fetch_history.py klart först" % (iid, mid(iid)))
-    return json.load(open(fil, encoding="utf-8"))
+def read_history(iid):
+    path = os.path.join(HISTORY_DIR, market_id(iid) + ".json")
+    if not os.path.exists(path):
+        sys.exit("no history for %s (%s); let fetch_history.py finish first" % (iid, market_id(iid)))
+    return json.load(open(path, encoding="utf-8"))
 
 
-def bakat(data_dir, ut):
-    gammal = json.load(open(os.path.join(data_dir, "prices.json"), encoding="utf-8"))["updates"]
-    # Antalen per datum: varje inventering gäller fram till nästa.
-    antal_per = [(u["date"], u["qty"]) for u in gammal if u.get("qty") and not u.get("assumed_qty")]
-    INVENTERING, forsta_antal = antal_per[0]
-    # Så långt bakåt som API:ts historik går (en vecka).
-    FORSTA_DAG = datetime.date.fromisoformat(INVENTERING) - datetime.timedelta(days=6)
-    historik = {}
-    for _, q in antal_per:
+def rebuild(data_dir, out):
+    old = json.load(open(os.path.join(data_dir, "prices.json"), encoding="utf-8"))["updates"]
+    # The counts per date: each inventory holds until the next.
+    counts = [(u["date"], u["qty"]) for u in old if u.get("qty") and not u.get("assumed_qty")]
+    INVENTORY, first_counts = counts[0]
+    # As far back as the API's history goes (a week).
+    FIRST_DAY = datetime.date.fromisoformat(INVENTORY) - datetime.timedelta(days=6)
+    history = {}
+    for _, q in counts:
         for i in q:
-            if i not in historik:
-                historik[i] = las_historik(i)
+            if i not in history:
+                history[i] = read_history(i)
 
-    idag = datetime.date.today()
-    nu = datetime.datetime.now(SVERIGE).timestamp()
+    today = datetime.date.today()
+    now = datetime.datetime.now(TZ).timestamp()
     updates = []
-    dag = FORSTA_DAG
-    while dag <= idag and matpunkt(dag) <= nu:  # dagens punkt kommer efter midnatt
-        d = dag.isoformat()
-        qty = forsta_antal
-        for dd, q in antal_per:
+    day = FIRST_DAY
+    while day <= today and day_end(day) <= now:  # today's point comes after midnight
+        d = day.isoformat()
+        qty = first_counts
+        for dd, q in counts:
             if dd <= d:
                 qty = q
-        post = dagspunkt(historik, qty, matpunkt(dag), updates[-1] if updates else None)
-        post["date"] = d
-        if d < INVENTERING:
-            post["assumed_qty"] = True
-        updates.append(post)
-        dag += datetime.timedelta(days=1)
-    kontrollera(updates)
-    t = matpunkt(dag - datetime.timedelta(days=1))
+        point = day_point(history, qty, day_end(day), updates[-1] if updates else None)
+        point["date"] = d
+        if d < INVENTORY:
+            point["assumed_qty"] = True
+        updates.append(point)
+        day += datetime.timedelta(days=1)
+    check(updates)
+    t = day_end(day - datetime.timedelta(days=1))
     try:
-        rader = api("prices")  # utropspriserna, för utropspremien
+        rows = api("prices")  # the asking prices, for the asking premium
     except OSError as e:
-        print("utropspriserna gick inte att hämta: %s" % e)
-        rader = []
-    skriv_marknad(ut, updates[-1], {i: likviditet(historik[i], t, q) for i, q in updates[-1]["qty"].items()},
-                  rader)
-    # En inventering i dag (dygnet är inte slut): som sync.py, en post med
-    # gårdagens priser och de nya antalen. Natten därpå ersätts den av en
-    # riktig dagspunkt.
-    senare = [u for u in gammal if u["date"] >= dag.isoformat() and u.get("qty")]
-    if senare:
-        q = senare[-1]["qty"]
-        updates.append({"date": senare[-1]["date"], "inventory": True, "qty": q,
+        print("could not fetch the asking prices: %s" % e)
+        rows = []
+    write_market(out, updates[-1], {i: liquidity(history[i], t, q) for i, q in updates[-1]["qty"].items()}, rows)
+    # An inventory today (the day isn't over): like sync.py, an entry with
+    # yesterday's prices and the new counts. The night after it is replaced
+    # by a real day point.
+    later = [u for u in old if u["date"] >= day.isoformat() and u.get("qty")]
+    if later:
+        q = later[-1]["qty"]
+        updates.append({"date": later[-1]["date"], "inventory": True, "qty": q,
                         "prices": {i: p for i, p in updates[-1]["prices"].items() if i in q}})
-    skriv_json(os.path.join(ut, "prices.json"), {"source": "maplestory.market", "method": METOD, "updates": updates})
+    write_json(os.path.join(out, "prices.json"), {"source": "maplestory.market", "method": METHOD, "updates": updates})
 
-    # Händelsernas "price" är marknadspriset den dagen: det som handeln och
-    # uppdelningen under kontovärdet räknar mot.
-    fil = os.path.join(data_dir, "activity.json")
-    akt = json.load(open(fil, encoding="utf-8")) if os.path.exists(fil) else {"events": []}
-    for e in akt["events"]:
-        h = historik.get(e["id"]) or las_historik(e["id"])
-        m = markera(h, matpunkt(datetime.date.fromisoformat(e["date"])))
+    # The events' "price" is the market price that day: what the trading and
+    # the breakdown under the account value count against.
+    path = os.path.join(data_dir, "activity.json")
+    act = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {"events": []}
+    for e in act["events"]:
+        h = history.get(e["id"]) or read_history(e["id"])
+        m = price_at(h, day_end(datetime.date.fromisoformat(e["date"])))
         if m:
             e["price"] = m["p"]
-    skriv_json(os.path.join(ut, "activity.json"), akt)
+    write_json(os.path.join(out, "activity.json"), act)
 
     for u in updates:
-        print(u["date"], "%10s" % format(total(u), ","), "antagna antal" if u.get("assumed_qty") else "")
-    # Timmarna från första dagen, i lagret (hours.json); servern tar över därifrån.
-    if ut == data_dir:
-        p = timmar(data_dir, os.path.join(ut, "hourly.json"),
-                   fran=matpunkt(FORSTA_DAG - datetime.timedelta(days=1)) + 3600)
+        print(u["date"], "%10s" % format(total(u), ","), "assumed counts" if u.get("assumed_qty") else "")
+    # The hours from the first day, in the store (hours.json); the hourly job takes over from there.
+    if out == data_dir:
+        p = hours(data_dir, os.path.join(out, "hourly.json"),
+                  start=day_end(FIRST_DAY - datetime.timedelta(days=1)) + 3600)
         if not p:
             return
-        print("%d timmar till %s" % (len(p), datetime.datetime.fromtimestamp(p[-1][0], SVERIGE).strftime("%d %b %H:%M")))
+        print("%d hours up to %s" % (len(p), datetime.datetime.fromtimestamp(p[-1][0], TZ).strftime("%d %b %H:%M")))
 
 
-def api(sokvag):
-    req = urllib.request.Request("https://maplestory.market/api/" + sokvag,
-                                 headers={"Authorization": "Bearer " + nyckel(),
-                                          "User-Agent": inst.USER_AGENT})
-    with urllib.request.urlopen(req, timeout=60) as svar:
-        return json.load(svar)
+def api(api_path):
+    req = urllib.request.Request("https://maplestory.market/api/" + api_path,
+                                 headers={"Authorization": "Bearer " + api_key(),
+                                          "User-Agent": cfg.USER_AGENT})
+    with urllib.request.urlopen(req, timeout=60) as answer:
+        return json.load(answer)
 
 
-def butiker(data_dir, ut, svar):
-    """shops.json: allt karaktärernas butiker har sålt. /api/owners visar bara
-    senaste butikerna, så varje butik (player_id) sparas här och summan
-    växer i stället för att tappa gamla butiker. svar = owners-svaren."""
-    fil = os.path.join(data_dir, "shops.json")
-    data = json.load(open(fil, encoding="utf-8")) if os.path.exists(fil) else {"openings": {}}
-    for s in svar:
+def shops(data_dir, out, answers):
+    """shops.json: everything the characters' shops have sold. /api/owners
+    only shows the latest shops, so every shop (player_id) is kept here and
+    the total grows instead of losing old shops. answers = the owners answers."""
+    path = os.path.join(data_dir, "shops.json")
+    data = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {"openings": {}}
+    for s in answers:
         for o in s.get("openings", []):
             data["openings"][str(o["player_id"])] = {
                 "owner": s["owner_name"], "name": o["name"], "opened_at": o["opened_at"],
                 "last_seen": o["last_seen"], "sales": o["sales"]["sales"],
                 "units": o["sales"]["units"], "mesos": round(o["sales"]["mesos"])}
-    data["updated"] = datetime.datetime.now(SVERIGE).date().isoformat()
+    data["updated"] = datetime.datetime.now(TZ).date().isoformat()
     data["source"] = "maplestory.market"
-    skriv_json(os.path.join(ut, "shops.json"), data)
+    write_json(os.path.join(out, "shops.json"), data)
 
 
-def idag(data_dir, ut, live_fil):
-    """Gårdagens punkt i historiken: dygnets sista livevärde (live.json från
-    körningen strax före midnatt). Körs varje timme; gör något bara första
-    gången efter midnatt, när gårdagen saknas. En commit per dygn."""
-    nu = datetime.datetime.now(SVERIGE)
+def yesterday_point(data_dir, out, live_file):
+    """Yesterday's point in the history: the day's last live value (live.json
+    from the run just before midnight). Runs every hour; does something only
+    the first time after midnight, when yesterday is missing. One commit a day."""
+    now = datetime.datetime.now(TZ)
     data = json.load(open(os.path.join(data_dir, "prices.json"), encoding="utf-8"))
-    upp = data["updates"]
-    d = (nu.date() - datetime.timedelta(days=1)).isoformat()
-    # En post med inventory: true (sync.py: gårdagens priser, nya antal) är
-    # ingen dagspunkt; gäller den gårdagen ersätts den, med sina antal.
-    synk = upp[-1] if upp[-1].get("inventory") and upp[-1]["date"] == d else None
-    if upp[-1]["date"] >= d and not synk:
+    updates = data["updates"]
+    d = (now.date() - datetime.timedelta(days=1)).isoformat()
+    # An entry with inventory: true (sync.py: yesterday's prices, new counts)
+    # is no day point; if it is for yesterday it is replaced, with its counts.
+    synced = updates[-1] if updates[-1].get("inventory") and updates[-1]["date"] == d else None
+    if updates[-1]["date"] >= d and not synced:
         return False
     if data.get("source") != "maplestory.market":
-        print("prices.json är inte byggd ur marknadens historik än (fetch_history.py "
-              "--sen-publicera, se LASMIG.md); ingen dagspunkt")
+        print("prices.json is not built from the market's history yet (fetch_history.py "
+              "--then-publish, see the README); no day point")
         return False
-    if not os.path.exists(live_fil):
-        sys.exit("live.json saknas")
-    lv = json.load(open(live_fil, encoding="utf-8"))
-    if nu.timestamp() - lv["updated"] > 3 * 3600:
-        sys.exit("live.json är över tre timmar gammal")
-    if synk:
-        upp.pop()
-    sist = upp[-1]
-    post = {"date": d, "prices": dict(sist["prices"]), "qty": (synk or sist)["qty"],
-            "basis": dict(sist.get("basis", {})), "q": dict(sist.get("q", {}))}
+    if not os.path.exists(live_file):
+        sys.exit("live.json is missing")
+    lv = json.load(open(live_file, encoding="utf-8"))
+    if now.timestamp() - lv["updated"] > 3 * 3600:
+        sys.exit("live.json is more than three hours old")
+    if synced:
+        updates.pop()
+    last = updates[-1]
+    point = {"date": d, "prices": dict(last["prices"]), "qty": (synced or last)["qty"],
+             "basis": dict(last.get("basis", {})), "q": dict(last.get("q", {}))}
     for i, x in lv["items"].items():
-        if i in post["qty"]:
-            post["prices"][i], post["basis"][i], post["q"][i] = x["p"], x["w"], x["q"]
-    upp.append(post)
-    kontrollera(upp[-2:])
-    skriv_json(os.path.join(ut, "prices.json"), data)
-    # hourly.json skrivs av --live varje timme, inte här: med egen webbserver
-    # ligger den utanför git, annars återställer varje push den (LASMIG.md).
-    print(d, format(total(post), ","))
-    # Utropspriserna (p25) för utropspremien: ett anrop. Är timmens anrop
-    # slut publiceras priserna ändå, utan utropspremie.
+        if i in point["qty"]:
+            point["prices"][i], point["basis"][i], point["q"][i] = x["p"], x["w"], x["q"]
+    updates.append(point)
+    check(updates[-2:])
+    write_json(os.path.join(out, "prices.json"), data)
+    # hourly.json is written by --live every hour, not here: with an own web
+    # server it is outside git, otherwise every push would reset it (README).
+    print(d, format(total(point), ","))
+    # The asking prices (p25) for the asking premium: one call. If the
+    # hour's calls are used up, the prices are published anyway, without it.
     try:
-        rader = api("prices")
-        os.makedirs(os.path.join(HERE, "daily"), exist_ok=True)  # inte "priser/": skuggar priser.py
+        rows = api("prices")
+        os.makedirs(os.path.join(HERE, "daily"), exist_ok=True)
         with open(os.path.join(HERE, "daily", "prices_%s.json" % d), "w", encoding="utf-8") as f:
-            json.dump(rader, f)
+            json.dump(rows, f)
     except urllib.error.HTTPError as e:
-        print("utropspriserna gick inte att hämta: %s" % e.code)
-        rader = []
-    skriv_marknad(ut, post, {i: x for i, x in lv["items"].items()}, rader)
-    # Butikerna: svaren som omgången hämtade (404 = aldrig setts med butik).
-    svar = []
-    for k in KARAKTARER:
-        fil = os.path.join(HERE, "owners", k + ".json")
-        if os.path.exists(fil):
-            s = json.load(open(fil, encoding="utf-8"))
+        print("could not fetch the asking prices: %s" % e.code)
+        rows = []
+    write_market(out, point, {i: x for i, x in lv["items"].items()}, rows)
+    # The shops: the answers the rotation fetched (404 = never seen with a shop).
+    answers = []
+    for k in CHARACTERS:
+        path = os.path.join(HERE, "owners", k + ".json")
+        if os.path.exists(path):
+            s = json.load(open(path, encoding="utf-8"))
             if "owner_name" in s:
-                svar.append(s)
-    butiker(data_dir, ut, svar)
+                answers.append(s)
+    shops(data_dir, out, answers)
     return True
 
 
-# Kontovärdet timme för timme. Serverns eget lager; hourly.json i sajten är en
-# kopia utanför git, som live.json. Bara totalen per timme publiceras, inga
-# priser per föremål (API-villkoren: ingen återpublicering i bulk).
-TIMMAR = os.path.join(HERE, "hours.json")
-OMRAKNA_TIMMAR = 48  # varvet över föremålen tar ~9 h; äldre timmar är färdiga
+# The account value hour by hour. The job's own store; hourly.json on the site
+# is a copy outside git, like live.json. Only the total per hour is published,
+# no prices per item (the API terms: no republishing in bulk).
+HOURS = os.path.join(HERE, "hours.json")
+RECALC_HOURS = 48  # the round over the items takes ~9 h; older hours are final
 
 
-def timvarde(historik, updates, t):
-    """Kontovärdet vid t (slutet av en timme), räknat som dagspunkten: samma
-    fönster och tvådagsregel mot gårdagens punkt, dagens antal. Ett föremål
-    vars historik slutar före t behåller priset där den slutar; utan historik
-    gäller senaste punktens pris. Vid midnatt blir värdet dagens punkt."""
-    dag = datetime.datetime.fromtimestamp(t - 1, SVERIGE).date().isoformat()
-    fore = [u for u in updates if u["date"] < dag]
-    egen = next((u for u in updates if u["date"] == dag), None)
-    forra = fore[-1] if fore else None
-    qty = (egen or forra or updates[0])["qty"]
+def hour_value(history, updates, t):
+    """The account value at t (the end of an hour), worked out like the day
+    point: the same window and two-day rule against yesterday's point, the
+    day's counts. An item whose history ends before t keeps the price where
+    it ends; without history the latest point's price holds. At midnight the
+    value becomes the day's point."""
+    day = datetime.datetime.fromtimestamp(t - 1, TZ).date().isoformat()
+    before = [u for u in updates if u["date"] < day]
+    own = next((u for u in updates if u["date"] == day), None)
+    previous = before[-1] if before else None
+    qty = (own or previous or updates[0])["qty"]
     v = 0
     for i, q in qty.items():
-        p, h = None, historik.get(i)
+        p, h = None, history.get(i)
         if h:
-            g = forra and {"w": forra.get("basis", {}).get(i), "q": forra.get("q", {}).get(i),
-                           "p": forra["prices"].get(i)}
-            m = markera(h, min(t, h[-1]["hour"] + 3600), g if g and g["w"] else None)
+            g = previous and {"w": previous.get("basis", {}).get(i), "q": previous.get("q", {}).get(i),
+                              "p": previous["prices"].get(i)}
+            m = price_at(h, min(t, h[-1]["hour"] + 3600), g if g and g["w"] else None)
             p = m and m["p"]
         if p is None:
-            p = ((egen or forra or {}).get("prices") or {}).get(i)
+            p = ((own or previous or {}).get("prices") or {}).get(i)
         v += (p or 0) * q
     return round(v)
 
 
-def timmar(data_dir, ut_fil, fran=None):
-    """Räknar om timmarna från fran (--bakat: från första dagen), annars de
-    senaste OMRAKNA_TIMMAR; äldre timmar i lagret står kvar. Skriver lagret
-    och ut_fil: {"updated", "points": [[t, värde], ...]}, t i sekunder."""
+def hours(data_dir, out_file, start=None):
+    """Works out the hours again from start (--rebuild: from the first day),
+    else the latest RECALC_HOURS; older hours in the store stay. Writes the
+    store and out_file: {"updated", "points": [[t, value], ...]}, t in seconds."""
     data = json.load(open(os.path.join(data_dir, "prices.json"), encoding="utf-8"))
     if data.get("source") != "maplestory.market":
         return
-    upp = data["updates"]
-    gamla = json.load(open(TIMMAR, encoding="utf-8"))["points"] if os.path.exists(TIMMAR) else []
-    historik = {}
-    for u in upp:
+    updates = data["updates"]
+    old = json.load(open(HOURS, encoding="utf-8"))["points"] if os.path.exists(HOURS) else []
+    history = {}
+    for u in updates:
         for i in u["qty"]:
-            fil = os.path.join(HISTORIK, mid(i) + ".json")
-            if i not in historik and os.path.exists(fil):
-                h = json.load(open(fil, encoding="utf-8"))
+            path = os.path.join(HISTORY_DIR, market_id(i) + ".json")
+            if i not in history and os.path.exists(path):
+                h = json.load(open(path, encoding="utf-8"))
                 if h:
-                    historik[i] = h
-    if not historik:
+                    history[i] = h
+    if not history:
         return
-    slut = max(h[-1]["hour"] for h in historik.values()) + 3600
-    if fran is None:
-        forsta = datetime.date.fromisoformat(upp[0]["date"])
-        fran = slut - OMRAKNA_TIMMAR * 3600 if gamla else matpunkt(forsta - datetime.timedelta(days=1)) + 3600
-    # Historiken växer (fetch_history slår ihop); fönstren går högst en vecka bakåt.
-    historik = {i: [r for r in h if r["hour"] >= fran - 8 * 86400] or h[-1:] for i, h in historik.items()}
-    punkter = [p for p in gamla if p[0] < fran]
-    punkter += [[t, timvarde(historik, upp, t)] for t in range(fran, slut + 1, 3600)]
-    ut = {"updated": int(datetime.datetime.now(SVERIGE).timestamp()), "points": punkter}
-    skriv_json(TIMMAR, ut)
-    if ut_fil:
-        skriv_json(ut_fil, ut)
-    return punkter
+    end = max(h[-1]["hour"] for h in history.values()) + 3600
+    if start is None:
+        first = datetime.date.fromisoformat(updates[0]["date"])
+        start = end - RECALC_HOURS * 3600 if old else day_end(first - datetime.timedelta(days=1)) + 3600
+    # The history grows (fetch_history merges); the windows go at most a week back.
+    history = {i: [r for r in h if r["hour"] >= start - 8 * 86400] or h[-1:] for i, h in history.items()}
+    points = [p for p in old if p[0] < start]
+    points += [[t, hour_value(history, updates, t)] for t in range(start, end + 1, 3600)]
+    result = {"updated": int(datetime.datetime.now(TZ).timestamp()), "points": points}
+    write_json(HOURS, result)
+    if out_file:
+        write_json(out_file, result)
+    return points
 
 
-def live(data_dir, ut_fil):
-    """live.json: varje föremåls pris räknat ur den senast hämtade
-    historiken, med fönstret slutande där historiken slutar. Skrivs varje
-    timme direkt i sajten, utanför git; sidan visar det som kontots värde
-    just nu, och dygnets sista livevärde blir dagens punkt i prices.json.
-    Gårdagens punkt ger fönstret för tvådagarsregeln."""
+def live(data_dir, out_file):
+    """live.json: every item's price worked out from the latest fetched
+    history, with the window ending where the history ends. Written every
+    hour straight into the site; the page shows it as the account's value
+    now, and the day's last live value becomes the day's point in
+    prices.json. Yesterday's point gives the window for the two-day rule."""
     data = json.load(open(os.path.join(data_dir, "prices.json"), encoding="utf-8"))
     if data.get("source") != "maplestory.market":
-        return  # före --bakat finns ingen historik att räkna på
-    # Antalen ur sista posten (kan vara synkens), fönstret och tvådagsregeln
-    # ur sista riktiga dagspunkten.
-    antal = data["updates"][-1]["qty"]
-    stang = [u for u in data["updates"] if not u.get("inventory")][-1]
+        return  # before --rebuild there is no history to work from
+    # The counts from the last entry (may be the sync's), the window and the
+    # two-day rule from the last real day point.
+    counts = data["updates"][-1]["qty"]
+    closed = [u for u in data["updates"] if not u.get("inventory")][-1]
     items = {}
-    for i, q in antal.items():
-        fil = os.path.join(HISTORIK, mid(i) + ".json")
-        if not os.path.exists(fil):
+    for i, q in counts.items():
+        path = os.path.join(HISTORY_DIR, market_id(i) + ".json")
+        if not os.path.exists(path):
             continue
-        h = json.load(open(fil, encoding="utf-8"))
+        h = json.load(open(path, encoding="utf-8"))
         if not h:
             continue
         t = h[-1]["hour"] + 3600
-        h = [r for r in h if r["hour"] >= t - 9 * 86400]  # fönstren går en vecka bakåt, från t − 24 h
-        forra = {"w": stang.get("basis", {}).get(i), "q": stang.get("q", {}).get(i), "p": stang["prices"].get(i)}
-        m = markera(h, t, forra if forra["w"] else None)
+        h = [r for r in h if r["hour"] >= t - 9 * 86400]  # the windows go a week back, from t − 24 h
+        previous = {"w": closed.get("basis", {}).get(i), "q": closed.get("q", {}).get(i), "p": closed["prices"].get(i)}
+        m = price_at(h, t, previous if previous["w"] else None)
         if m:
-            items[i] = {"p": m["p"], "w": m["w"], "q": m["q"], "at": t, **likviditet(h, t, q)}
-            # Rörelsen senaste 24 h (sidans sortering "24 hours"): samma fönster
-            # 24 h tidigare, så att ett fönsterbyte inte blir en rörelse. Bara
-            # procenten publiceras, inte det gamla priset.
-            fore = fonsterpris(h, t - 86400, m["w"]) if m["w"] != "stale" else None
-            items[i]["c24"] = round((m["p"] / fore - 1) * 100, 1) if fore else None
-    skriv_json(ut_fil, {"updated": int(datetime.datetime.now(SVERIGE).timestamp()), "items": items})
-    print("live: %d föremål, %s mesos" % (len(items), format(sum(v["p"] * antal[i] for i, v in items.items()), ",")))
+            items[i] = {"p": m["p"], "w": m["w"], "q": m["q"], "at": t, **liquidity(h, t, q)}
+            # The movement over the last 24 h (the page's "24 hours" sort): the
+            # same window 24 h earlier, so that a change of window is no
+            # movement. Only the percentage is published, not the old price.
+            before = window_price(h, t - 86400, m["w"]) if m["w"] != "stale" else None
+            items[i]["c24"] = round((m["p"] / before - 1) * 100, 1) if before else None
+    write_json(out_file, {"updated": int(datetime.datetime.now(TZ).timestamp()), "items": items})
+    print("live: %d items, %s mesos" % (len(items), format(sum(v["p"] * counts[i] for i, v in items.items()), ",")))
+
+
+def arg(args, *names):
+    """The value after the first of the flags given (English or the older Swedish)."""
+    for n in names:
+        if n in args:
+            return args[args.index(n) + 1]
+    return None
 
 
 def main(args):
     sys.stdout.reconfigure(encoding="utf-8")
-    web = args[args.index("--web") + 1] if "--web" in args else inst.WEB
+    web = arg(args, "--web") or cfg.WEB
+    live_out = arg(args, "--live-out", "--live-ut")
     if "--live" in args:
-        live_ut = args[args.index("--live-ut") + 1]
-        live(inst.data(web), live_ut)
-        timmar(inst.data(web), os.path.join(os.path.dirname(live_ut), "hourly.json"))
+        live(cfg.data_dir(web), live_out)
+        hours(cfg.data_dir(web), os.path.join(os.path.dirname(live_out), "hourly.json"))
         return
-    remotes = args[args.index("--remotes") + 1].split(",") if "--remotes" in args else inst.REMOTES
-    data_dir = inst.data(web)
-    ut = args[args.index("--ut") + 1] if "--ut" in args else data_dir
-    push = "--ingen-push" not in args and "--ut" not in args
+    remotes = arg(args, "--remotes").split(",") if "--remotes" in args else cfg.REMOTES
+    data_dir = cfg.data_dir(web)
+    out = arg(args, "--out", "--ut") or data_dir
+    push = "--no-push" not in args and "--ingen-push" not in args and out == data_dir
     git = ["git", "-C", web]
     if push:
         subprocess.run(git + ["pull", "--rebase", "--autostash", "-q", remotes[0], "main"], check=True)
-    if "--bakat" in args:
-        bakat(data_dir, ut)
-    elif not idag(data_dir, ut, args[args.index("--live-ut") + 1] if "--live-ut" in args
-                  else os.path.join(data_dir, "live.json")):
+    if "--rebuild" in args or "--bakat" in args:
+        rebuild(data_dir, out)
+    elif not yesterday_point(data_dir, out, live_out or os.path.join(data_dir, "live.json")):
         return
     if not push:
         return
-    subprocess.run(git + ["add", inst.UNDERMAPP], check=True)
+    subprocess.run(git + ["add", cfg.SUBFOLDER], check=True)
     if subprocess.run(git + ["diff", "--cached", "--quiet"]).returncode == 0:
-        print("inget nytt")
+        print("nothing new")
         return
-    meddelande = "MapleStory prices from maplestory.market"
-    subprocess.run(git + ["commit", "-q", "-m", meddelande], check=True)
+    subprocess.run(git + ["commit", "-q", "-m", "MapleStory prices from maplestory.market"], check=True)
     for r in remotes:
         subprocess.run(git + ["push", "-q", r, "main"], check=True)
 
